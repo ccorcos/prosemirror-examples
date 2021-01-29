@@ -8,6 +8,8 @@
 
 Polish
 - select mention delete should work.
+- mention change selection away should close menu.
+- space @ space @ space @ breaks
 
 
 ## Later

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { HashRouter as Router, Switch, Route, Link } from "react-router-dom"
 import { Editor as Autocomplete } from "./Autocomplete"
+import { Editor as Pill } from "./Pill"
 
 export function App() {
 	return (
@@ -29,8 +30,4 @@ export function App() {
 			</div>
 		</Router>
 	)
-}
-
-function Pill() {
-	return <div>pill</div>
 }
