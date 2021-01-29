@@ -1,7 +1,6 @@
 {
-	"name": "typescript-boilerplate",
+	"name": "prosemirror-examples",
 	"version": "1.0.0",
-	"description": "boilerplate for web applications using typescript and webpack",
 	"main": "index.js",
 	"scripts": {
 		"start": "webpack serve --content-base dist",
