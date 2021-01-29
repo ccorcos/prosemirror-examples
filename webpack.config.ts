@@ -1,6 +1,7 @@
 import * as path from "path"
-import HtmlWebpackPlugin from "html-webpack-plugin"
 import { Configuration } from "webpack"
+import HtmlWebpackPlugin from "html-webpack-plugin"
+import MiniCssExtractPlugin from "mini-css-extract-plugin"
 
 const config: Configuration = {
 	entry: "./src/index.tsx",
@@ -14,6 +15,10 @@ const config: Configuration = {
 				exclude: /node_modules/,
 				use: [{ loader: "ts-loader" }],
 			},
+			{
+				test: /\.css$/i,
+				use: [MiniCssExtractPlugin.loader, "css-loader"],
+			},
 		],
 	},
 	cache: true,
@@ -24,6 +29,7 @@ const config: Configuration = {
 		chunkFilename: "[name]-[chunkhash].js",
 	},
 	plugins: [
+		new MiniCssExtractPlugin(),
 		new HtmlWebpackPlugin({
 			template: path.join(__dirname, "src/index.html"),
 		}),
