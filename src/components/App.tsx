@@ -1,31 +1,34 @@
 import * as React from "react"
+import { HashRouter as Router, Switch, Route, Link } from "react-router-dom"
 
 export function App() {
-	const [{ x, y }, setMouse] = React.useState({ x: 0, y: 0 })
-	React.useEffect(() => {
-		const handleMouseMove = (event) => {
-			setMouse({ x: event.clientX, y: event.clientY })
-		}
-		window.addEventListener("mousemove", handleMouseMove)
-		return () => {
-			window.removeEventListener("mousemove", handleMouseMove)
-		}
-	})
-
 	return (
-		<div>
-			<div
-				style={{
-					position: "fixed",
-					top: 0,
-					left: 0,
-					width: x,
-					height: y,
-					background: "cyan",
-					opacity: 0.2,
-				}}
-			/>
-			<h1>Hello World</h1>
-		</div>
+		<Router>
+			<div>
+				<div style={{ display: "inline-block", padding: "2px 4px" }}>
+					<Link to="/">Autocomplete</Link>
+				</div>
+				<div style={{ display: "inline-block", padding: "2px 4px" }}>
+					<Link to="/pill">Pill</Link>
+				</div>
+
+				<Switch>
+					<Route path="/pill">
+						<Pill />
+					</Route>
+					<Route path="/">
+						<Autocomplete />
+					</Route>
+				</Switch>
+			</div>
+		</Router>
 	)
+}
+
+function Pill() {
+	return <div>pill</div>
+}
+
+function Autocomplete() {
+	return <div>autocomplete</div>
 }
