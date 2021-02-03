@@ -252,7 +252,7 @@ function createAutocompletePlugin<N extends string, T>(args: {
 				return DecorationSet.create(editorState.doc, [
 					Decoration.inline(range.from, range.to, {
 						nodeName: "span",
-						style: "color:red;",
+						style: "color:#999;",
 					}),
 				])
 			},
