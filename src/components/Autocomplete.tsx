@@ -10,8 +10,13 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 
 import ReactDOM from "react-dom"
 import React, { useLayoutEffect, useRef } from "react"
-import { MarkSpec, NodeSpec, NodeType, Schema } from "prosemirror-model"
-import { Plugin, PluginKey, EditorState } from "prosemirror-state"
+import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
+import {
+	Plugin,
+	PluginKey,
+	EditorState,
+	NodeSelection,
+} from "prosemirror-state"
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
 import { history, undo, redo } from "prosemirror-history"
 import { keymap } from "prosemirror-keymap"
@@ -53,7 +58,7 @@ function createAutocompletePlugin<N extends string, T>(args: {
 	getNodeAttr: (suggestion: T) => string
 	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
 	renderPopup: (state: AutocompleteTokenPluginState<T>) => void
-}): { plugin: Plugin; nodes: { [key in N]: NodeSpec } } {
+}): { plugins: Plugin[]; nodes: { [key in N]: NodeSpec } } {
 	const {
 		nodeName: tokenName,
 		triggerCharacter: triggerChar,
@@ -272,7 +277,24 @@ function createAutocompletePlugin<N extends string, T>(args: {
 
 	return {
 		nodes: { [tokenName]: autocompleteTokenNode } as any,
-		plugin: autocompleteTokenPlugin,
+		plugins: [
+			autocompleteTokenPlugin,
+			// Delete token when it is selected.
+			keymap<Schema>({
+				Backspace: (state, dispatch) => {
+					const { node } = state.selection as NodeSelection
+					if (node) {
+						node.type === state.schema.nodes[tokenName]
+						console.log(node)
+						if (dispatch) {
+							dispatch(state.tr.deleteSelection())
+						}
+						return true
+					}
+					return false
+				},
+			}),
+		],
 	}
 }
 
@@ -396,7 +418,7 @@ export function Editor() {
 				history(),
 				keymap({ "Mod-z": undo, "Mod-y": redo }),
 				keymap({ "Mod-b": toggleMark(schema.marks.bold) }),
-				mentionAutocomplete.plugin,
+				...mentionAutocomplete.plugins,
 			],
 		})
 
