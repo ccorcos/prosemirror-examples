@@ -22,7 +22,7 @@ import "./Autocomplete.css"
 // Autocomplete Plugin
 // ==================================================================
 
-type AutocompleteTokenPluginState =
+type AutocompleteTokenPluginState<T> =
 	| { active: false }
 	| {
 			active: true
@@ -31,7 +31,7 @@ type AutocompleteTokenPluginState =
 			// The text we use to search
 			queryText: string
 			// The search results
-			suggestions: Array<string>
+			suggestions: Array<T>
 			// Which result is selected
 			index: number
 			// Where to position the popup
@@ -46,29 +46,23 @@ type AutocompleteTokenPluginAction =
 	| { type: "up" }
 	| { type: "close" }
 
-function createAutocompletePlugin<T extends string>(args: {
-	tokenName: T
-	triggerChar: string
-	tokenStyle: Partial<HTMLElement["style"]>
-	getSuggestions: (queryText: string) => Array<string>
-	renderPopup: (state: AutocompleteTokenPluginState) => void
-}): { plugin: Plugin; nodes: { [key in T]: NodeSpec } } {
+function createAutocompletePlugin<N extends string, T>(args: {
+	nodeName: N
+	triggerCharacter: string
+	getSuggestions: (queryText: string) => Array<T>
+	getNodeAttr: (suggestion: T) => string
+	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
+	renderPopup: (state: AutocompleteTokenPluginState<T>) => void
+}): { plugin: Plugin; nodes: { [key in N]: NodeSpec } } {
 	const {
-		tokenName,
-		triggerChar,
-		tokenStyle,
+		nodeName: tokenName,
+		triggerCharacter: triggerChar,
+		renderToken,
 		getSuggestions,
 		renderPopup,
 	} = args
 	const pluginKey = new PluginKey(tokenName)
 	const dataAttr = `data-${tokenName}`
-
-	// Get the style attribute text for the token.
-	const span = document.createElement("span")
-	for (const key in tokenStyle) {
-		span.style[key] = tokenStyle[key] as any
-	}
-	const tokenStyleText = span.getAttribute("style") || ""
 
 	const autocompleteTokenNode: NodeSpec = {
 		group: "inline",
@@ -77,11 +71,9 @@ function createAutocompletePlugin<T extends string>(args: {
 		attrs: { [tokenName]: { default: "" } },
 		toDOM: (node) => {
 			const span = document.createElement("span")
+			const nodeAttr = node.attrs[tokenName]
 			span.setAttribute(dataAttr, node.attrs[tokenName])
-			for (const key in tokenStyle) {
-				span.style[key] = tokenStyle[key] as any
-			}
-			span.innerText = triggerChar + node.attrs[tokenName]
+			renderToken(span, nodeAttr)
 			return span
 		},
 		parseDOM: [
@@ -98,7 +90,7 @@ function createAutocompletePlugin<T extends string>(args: {
 	}
 
 	const autocompleteTokenPlugin = new Plugin<
-		AutocompleteTokenPluginState,
+		AutocompleteTokenPluginState<T>,
 		Schema<any>
 	>({
 		key: pluginKey,
@@ -113,7 +105,7 @@ function createAutocompletePlugin<T extends string>(args: {
 				if (action) {
 					if (action.type === "open") {
 						const { pos, rect } = action
-						const newState: AutocompleteTokenPluginState = {
+						const newState: AutocompleteTokenPluginState<T> = {
 							active: true,
 							range: { from: pos, to: pos },
 							queryText: "",
@@ -153,7 +145,7 @@ function createAutocompletePlugin<T extends string>(args: {
 
 					const queryText = text.slice(1) // Remove the leading "#"
 					const suggestions = getSuggestions(queryText)
-					const newState: AutocompleteTokenPluginState = {
+					const newState: AutocompleteTokenPluginState<T> = {
 						...state,
 						range: { from, to },
 						queryText,
@@ -250,7 +242,9 @@ function createAutocompletePlugin<T extends string>(args: {
 				return false
 			},
 			decorations(editorState) {
-				const state: AutocompleteTokenPluginState = this.getState(editorState)
+				const state: AutocompleteTokenPluginState<T> = this.getState(
+					editorState
+				)
 				if (!state.active) {
 					return null
 				}
@@ -258,7 +252,7 @@ function createAutocompletePlugin<T extends string>(args: {
 				return DecorationSet.create(editorState.doc, [
 					Decoration.inline(range.from, range.to, {
 						nodeName: "span",
-						style: tokenStyleText,
+						style: "color:red;",
 					}),
 				])
 			},
@@ -266,7 +260,7 @@ function createAutocompletePlugin<T extends string>(args: {
 		view() {
 			return {
 				update(view) {
-					var state: AutocompleteTokenPluginState = pluginKey.getState(
+					var state: AutocompleteTokenPluginState<T> = pluginKey.getState(
 						view.state
 					)
 					renderPopup(state)
@@ -290,9 +284,8 @@ const mentionPopupElement = document.createElement("div")
 document.body.append(mentionPopupElement)
 
 const mentionAutocomplete = createAutocompletePlugin({
-	tokenName: "mention",
-	triggerChar: "@",
-	tokenStyle: { color: "green" },
+	nodeName: "mention",
+	triggerCharacter: "@",
 	getSuggestions: (queryText: string) => {
 		return [
 			"Max Einhorn",
@@ -302,12 +295,20 @@ const mentionAutocomplete = createAutocompletePlugin({
 			"Simon Last",
 		].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
 	},
+	getNodeAttr: (str) => str,
+	renderToken: (span, attr) => {
+		ReactDOM.render(<MentionToken value={attr} />, span)
+	},
 	renderPopup: (state) => {
 		ReactDOM.render(<AutocompletePopup {...state} />, mentionPopupElement)
 	},
 })
 
-function AutocompletePopup(props: AutocompleteTokenPluginState) {
+function MentionToken(props: { value: string }) {
+	return <span style={{ color: "blue" }}>@{props.value}</span>
+}
+
+function AutocompletePopup(props: AutocompleteTokenPluginState<string>) {
 	if (!props.active) {
 		return null
 	}
@@ -331,8 +332,8 @@ function AutocompletePopup(props: AutocompleteTokenPluginState) {
 			{suggestions.length === 0 && <div>No Results</div>}
 			{suggestions.map((suggestion, i) => {
 				return (
-					<div key={i} style={{ color: i === index ? "red" : undefined }}>
-						@{suggestion}
+					<div key={i} style={{ background: i === index ? "#ddd" : undefined }}>
+						<MentionToken value={suggestion} />
 					</div>
 				)
 			})}

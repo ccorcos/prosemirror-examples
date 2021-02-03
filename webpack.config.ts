@@ -13,7 +13,12 @@ const config: Configuration = {
 			{
 				test: /\.tsx?$/,
 				exclude: /node_modules/,
-				use: [{ loader: "ts-loader" }],
+				use: [
+					{
+						loader: "awesome-typescript-loader",
+						options: { transpileOnly: true, useCache: true },
+					},
+				],
 			},
 			{
 				test: /\.css$/i,
@@ -22,7 +27,7 @@ const config: Configuration = {
 		],
 	},
 	cache: true,
-	devtool: "source-map",
+	// devtool: "source-map",
 	output: {
 		path: path.join(__dirname, "dist"),
 		filename: "[name]-[chunkhash].js",
