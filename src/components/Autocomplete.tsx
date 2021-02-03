@@ -51,7 +51,7 @@ type AutocompleteTokenPluginAction =
 	| { type: "up" }
 	| { type: "close" }
 
-function createAutocompletePlugin<N extends string, T>(args: {
+function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	nodeName: N
 	triggerCharacter: string
 	getSuggestions: (queryText: string) => Array<T>
@@ -305,7 +305,7 @@ function createAutocompletePlugin<N extends string, T>(args: {
 const mentionPopupElement = document.createElement("div")
 document.body.append(mentionPopupElement)
 
-const mentionAutocomplete = createAutocompletePlugin({
+const mentionAutocomplete = createAutocompleteTokenPlugin({
 	nodeName: "mention",
 	triggerCharacter: "@",
 	getSuggestions: (queryText: string) => {
