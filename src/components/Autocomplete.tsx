@@ -52,7 +52,6 @@ function createAutocompletePlugin<T extends string>(args: {
 	tokenStyle: Partial<HTMLElement["style"]>
 	getSuggestions: (queryText: string) => Array<string>
 	renderPopup: (state: AutocompleteTokenPluginState) => void
-	wrapNode?: (schema: Schema<any>) => NodeType<Schema<any>>
 }): { plugin: Plugin; nodes: { [key in T]: NodeSpec } } {
 	const {
 		tokenName,
@@ -240,15 +239,9 @@ function createAutocompletePlugin<T extends string>(args: {
 						[tokenName]: value,
 					})
 
-					console.log("node", node)
-					const tr = view.state.tr.replaceWith(
-						state.range.from,
-						state.range.to,
-						node
+					view.dispatch(
+						view.state.tr.replaceWith(state.range.from, state.range.to, node)
 					)
-					console.log("tr", tr)
-					const newState = view.state.apply(tr)
-					view.updateState(newState)
 
 					dispatch({ type: "close" })
 					return true
