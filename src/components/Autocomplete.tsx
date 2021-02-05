@@ -58,7 +58,13 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	/**
 	 * Return string to create a token with the given data-attribute.
 	 */
-	onEnter: (suggestion: T) => string | undefined
+	onEnter: (
+		suggestion: T,
+		actions: {
+			create: (nodeAttr: string) => void
+			close: () => void
+		}
+	) => void
 	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
 	renderPopup: (state: AutocompleteTokenPluginState<T>) => void
 }): { plugins: Plugin[]; nodes: { [key in N]: NodeSpec } } {
@@ -233,17 +239,16 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						return true
 					}
 
-					const value = onEnter(state.suggestions[state.index])
-					if (value !== undefined) {
+					const { range, suggestions, index } = state
+					const create = (value: string) => {
 						const node = view.state.schema.nodes[nodeName].create({
 							[nodeName]: value,
 						})
-						view.dispatch(
-							view.state.tr.replaceWith(state.range.from, state.range.to, node)
-						)
+						view.dispatch(view.state.tr.replaceWith(range.from, range.to, node))
 					}
+					const close = () => dispatch({ type: "close" })
 
-					dispatch({ type: "close" })
+					onEnter(suggestions[index], { create, close })
 					return true
 				}
 
@@ -320,7 +325,10 @@ const mentionAutocomplete = createAutocompleteTokenPlugin({
 			"Simon Last",
 		].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
 	},
-	onEnter: (str) => str,
+	onEnter: (value, { create, close }) => {
+		create(value)
+		close()
+	},
 	renderToken: (span, attr) => {
 		ReactDOM.render(<MentionToken value={attr} />, span)
 	},
