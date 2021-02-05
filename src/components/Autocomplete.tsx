@@ -55,9 +55,6 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	nodeName: N
 	triggerCharacter: string
 	getSuggestions: (queryText: string) => Array<T>
-	/**
-	 * Return string to create a token with the given data-attribute.
-	 */
 	onEnter: (
 		suggestion: T,
 		actions: {
