@@ -55,29 +55,33 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	nodeName: N
 	triggerCharacter: string
 	getSuggestions: (queryText: string) => Array<T>
-	getNodeAttr: (suggestion: T) => string
+	/**
+	 * Return string to create a token with the given data-attribute.
+	 */
+	onEnter: (suggestion: T) => string | undefined
 	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
 	renderPopup: (state: AutocompleteTokenPluginState<T>) => void
 }): { plugins: Plugin[]; nodes: { [key in N]: NodeSpec } } {
 	const {
-		nodeName: tokenName,
-		triggerCharacter: triggerChar,
-		renderToken,
+		nodeName,
+		triggerCharacter,
 		getSuggestions,
+		onEnter,
+		renderToken,
 		renderPopup,
 	} = args
-	const pluginKey = new PluginKey(tokenName)
-	const dataAttr = `data-${tokenName}`
+	const pluginKey = new PluginKey(nodeName)
+	const dataAttr = `data-${nodeName}`
 
 	const autocompleteTokenNode: NodeSpec = {
 		group: "inline",
 		inline: true,
 		atom: true,
-		attrs: { [tokenName]: { default: "" } },
+		attrs: { [nodeName]: { default: "" } },
 		toDOM: (node) => {
 			const span = document.createElement("span")
-			const nodeAttr = node.attrs[tokenName]
-			span.setAttribute(dataAttr, node.attrs[tokenName])
+			const nodeAttr = node.attrs[nodeName]
+			span.setAttribute(dataAttr, node.attrs[nodeName])
 			renderToken(span, nodeAttr)
 			return span
 		},
@@ -87,7 +91,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				getAttrs: (dom) => {
 					if (dom instanceof HTMLElement) {
 						var value = dom.getAttribute(dataAttr)
-						return { [tokenName]: value }
+						return { [nodeName]: value }
 					}
 				},
 			},
@@ -143,7 +147,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					const to = tr.mapping.map(range.to)
 
 					const text = tr.doc.textBetween(from, to, "\n", "\0")
-					if (!text.startsWith(triggerChar)) {
+					if (!text.startsWith(triggerCharacter)) {
 						// Close when deleting the #.
 						return { active: false }
 					}
@@ -172,7 +176,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				}
 
 				// if key is #, check that the previous position is blank and the next position is blank.
-				if (e.key === triggerChar) {
+				if (e.key === triggerCharacter) {
 					const tr = view.state.tr
 					var selection = tr.selection
 					// Collapsed selection
@@ -229,16 +233,15 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						return true
 					}
 
-					const value = state.suggestions[state.index]
-
-					// Where is the best place to put this code? Feels like a side-effect.
-					const node = view.state.schema.nodes[tokenName].create({
-						[tokenName]: value,
-					})
-
-					view.dispatch(
-						view.state.tr.replaceWith(state.range.from, state.range.to, node)
-					)
+					const value = onEnter(state.suggestions[state.index])
+					if (value !== undefined) {
+						const node = view.state.schema.nodes[nodeName].create({
+							[nodeName]: value,
+						})
+						view.dispatch(
+							view.state.tr.replaceWith(state.range.from, state.range.to, node)
+						)
+					}
 
 					dispatch({ type: "close" })
 					return true
@@ -276,7 +279,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	})
 
 	return {
-		nodes: { [tokenName]: autocompleteTokenNode } as any,
+		nodes: { [nodeName]: autocompleteTokenNode } as any,
 		plugins: [
 			autocompleteTokenPlugin,
 			// Delete token when it is selected.
@@ -284,7 +287,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				Backspace: (state, dispatch) => {
 					const { node } = state.selection as NodeSelection
 					if (node) {
-						node.type === state.schema.nodes[tokenName]
+						node.type === state.schema.nodes[nodeName]
 						console.log(node)
 						if (dispatch) {
 							dispatch(state.tr.deleteSelection())
@@ -317,7 +320,7 @@ const mentionAutocomplete = createAutocompleteTokenPlugin({
 			"Simon Last",
 		].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
 	},
-	getNodeAttr: (str) => str,
+	onEnter: (str) => str,
 	renderToken: (span, attr) => {
 		ReactDOM.render(<MentionToken value={attr} />, span)
 	},
