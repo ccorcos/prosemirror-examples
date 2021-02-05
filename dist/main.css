@@ -1,0 +1,4 @@
+[data-mention].ProseMirror-selectednode {
+	outline: 1px solid blue;
+}
+
