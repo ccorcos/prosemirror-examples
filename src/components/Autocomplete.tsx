@@ -48,6 +48,11 @@ type AutocompleteTokenPluginActiveState<T> = {
 	rect: { bottom: number; left: number }
 }
 
+type AutocompleteTokenPluginActions = {
+	onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
+	onClose: () => void
+}
+
 type AutocompleteTokenPluginAction =
 	| { type: "open"; pos: number; rect: { bottom: number; left: number } }
 	| { type: "close" }
@@ -58,10 +63,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
 	renderPopup: (
 		state: AutocompleteTokenPluginState<T>,
-		actions: {
-			onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
-			onClose: () => void
-		}
+		actions: AutocompleteTokenPluginActions
 	) => void
 }): { plugins: Plugin[]; nodes: { [key in N]: NodeSpec } } {
 	const { nodeName, triggerCharacter, renderToken, renderPopup } = args
@@ -294,10 +296,7 @@ function MentionToken(props: { value: string }) {
 
 function AutocompletePopup(props: {
 	state: AutocompleteTokenPluginState<string>
-	actions: {
-		onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
-		onClose: () => void
-	}
+	actions: AutocompleteTokenPluginActions
 }) {
 	if (!props.state.active) {
 		return null
@@ -307,10 +306,8 @@ function AutocompletePopup(props: {
 }
 
 function AutocompletePopupInner(
-	props: AutocompleteTokenPluginActiveState<string> & {
-		onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
-		onClose: () => void
-	}
+	props: AutocompleteTokenPluginActiveState<string> &
+		AutocompleteTokenPluginActions
 ) {
 	const { rect, text, onClose, range, onCreate } = props
 
