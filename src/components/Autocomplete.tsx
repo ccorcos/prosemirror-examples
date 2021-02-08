@@ -9,7 +9,13 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 */
 
 import ReactDOM from "react-dom"
-import React, { useLayoutEffect, useRef } from "react"
+import React, {
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
 import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
 import {
 	Plugin,
@@ -22,6 +28,7 @@ import { history, undo, redo } from "prosemirror-history"
 import { keymap } from "prosemirror-keymap"
 import { toggleMark } from "prosemirror-commands"
 import "./Autocomplete.css"
+import { keyboardStack, useKeyboard } from "./Keyboard"
 
 // ==================================================================
 // Autocomplete Plugin
@@ -29,50 +36,35 @@ import "./Autocomplete.css"
 
 type AutocompleteTokenPluginState<T> =
 	| { active: false }
-	| {
-			active: true
-			// The cursor selection where we get text from
-			range: { from: number; to: number }
-			// The text we use to search
-			queryText: string
-			// The search results
-			suggestions: Array<T>
-			// Which result is selected
-			index: number
-			// Where to position the popup
-			rect: { bottom: number; left: number }
-			// How times we got no suggestions, close menu after 5.
-			misses: number
-	  }
+	| AutocompleteTokenPluginActiveState<T>
+
+type AutocompleteTokenPluginActiveState<T> = {
+	active: true
+	// The cursor selection where we get text from
+	range: { from: number; to: number }
+	// The text we use to search
+	text: string
+	// Where to position the popup
+	rect: { bottom: number; left: number }
+}
 
 type AutocompleteTokenPluginAction =
 	| { type: "open"; pos: number; rect: { bottom: number; left: number } }
-	| { type: "down" }
-	| { type: "up" }
 	| { type: "close" }
 
 function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	nodeName: N
 	triggerCharacter: string
-	getSuggestions: (queryText: string) => Array<T>
-	onEnter: (
-		suggestion: T,
+	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
+	renderPopup: (
+		state: AutocompleteTokenPluginState<T>,
 		actions: {
-			create: (nodeAttr: string) => void
-			close: () => void
+			onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
+			onClose: () => void
 		}
 	) => void
-	renderToken: (span: HTMLSpanElement, nodeAttr: string) => void
-	renderPopup: (state: AutocompleteTokenPluginState<T>) => void
 }): { plugins: Plugin[]; nodes: { [key in N]: NodeSpec } } {
-	const {
-		nodeName,
-		triggerCharacter,
-		getSuggestions,
-		onEnter,
-		renderToken,
-		renderPopup,
-	} = args
+	const { nodeName, triggerCharacter, renderToken, renderPopup } = args
 	const pluginKey = new PluginKey(nodeName)
 	const dataAttr = `data-${nodeName}`
 
@@ -120,23 +112,10 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						const newState: AutocompleteTokenPluginState<T> = {
 							active: true,
 							range: { from: pos, to: pos },
-							queryText: "",
-							index: 0,
-							suggestions: [],
+							text: "",
 							rect: rect,
-							misses: 0,
 						}
 						return newState
-					} else if (state.active && action.type === "down") {
-						return {
-							...state,
-							index: Math.min(state.index + 1, state.suggestions.length - 1),
-						}
-					} else if (state.active && action.type === "up") {
-						return {
-							...state,
-							index: Math.max(state.index - 1, 0),
-						}
 					} else if (action.type === "close") {
 						return { active: false }
 					}
@@ -156,13 +135,10 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					}
 
 					const queryText = text.slice(1) // Remove the leading "#"
-					const suggestions = getSuggestions(queryText)
 					const newState: AutocompleteTokenPluginState<T> = {
 						...state,
 						range: { from, to },
-						queryText,
-						suggestions,
-						misses: suggestions.length === 0 ? state.misses + 1 : state.misses,
+						text: queryText,
 					}
 					return newState
 				}
@@ -215,40 +191,10 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					return false
 				}
 
-				if (e.key === "ArrowDown") {
-					dispatch({ type: "down" })
+				// Delegate to the global keyboard stack.
+				if (keyboardStack.handleKeyDown(e)) {
 					return true
 				}
-
-				if (e.key === "ArrowUp") {
-					dispatch({ type: "up" })
-					return true
-				}
-
-				if (e.key === "Escape") {
-					dispatch({ type: "close" })
-					return true
-				}
-
-				if (e.key === "Enter") {
-					if (state.index >= state.suggestions.length) {
-						dispatch({ type: "close" })
-						return true
-					}
-
-					const { range, suggestions, index } = state
-					const create = (value: string) => {
-						const node = view.state.schema.nodes[nodeName].create({
-							[nodeName]: value,
-						})
-						view.dispatch(view.state.tr.replaceWith(range.from, range.to, node))
-					}
-					const close = () => dispatch({ type: "close" })
-
-					onEnter(suggestions[index], { create, close })
-					return true
-				}
-
 				return false
 			},
 			decorations(editorState) {
@@ -273,7 +219,23 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					var state: AutocompleteTokenPluginState<T> = pluginKey.getState(
 						view.state
 					)
-					renderPopup(state)
+
+					const onCreate = (
+						value: string,
+						range: { from: number; to: number }
+					) => {
+						const node = view.state.schema.nodes[nodeName].create({
+							[nodeName]: value,
+						})
+						view.dispatch(view.state.tr.replaceWith(range.from, range.to, node))
+					}
+
+					const dispatch = (action: AutocompleteTokenPluginAction) => {
+						view.dispatch(view.state.tr.setMeta(pluginKey, action))
+					}
+					const onClose = () => dispatch({ type: "close" })
+
+					renderPopup(state, { onCreate, onClose })
 				},
 				destroy() {},
 			}
@@ -310,27 +272,27 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 const mentionPopupElement = document.createElement("div")
 document.body.append(mentionPopupElement)
 
+const getSuggestions = (queryText: string) => {
+	return [
+		"Max Einhorn",
+		"Sean O'Rielly",
+		"Sam Corcos",
+		"Haris Butt",
+		"Simon Last",
+	].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
+}
+
 const mentionAutocomplete = createAutocompleteTokenPlugin({
 	nodeName: "mention",
 	triggerCharacter: "@",
-	getSuggestions: (queryText: string) => {
-		return [
-			"Max Einhorn",
-			"Sean O'Rielly",
-			"Sam Corcos",
-			"Haris Butt",
-			"Simon Last",
-		].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
-	},
-	onEnter: (value, { create, close }) => {
-		create(value)
-		close()
-	},
 	renderToken: (span, attr) => {
 		ReactDOM.render(<MentionToken value={attr} />, span)
 	},
-	renderPopup: (state) => {
-		ReactDOM.render(<AutocompletePopup {...state} />, mentionPopupElement)
+	renderPopup: (state, actions) => {
+		ReactDOM.render(
+			<AutocompletePopup state={state} actions={actions} />,
+			mentionPopupElement
+		)
 	},
 })
 
@@ -338,11 +300,71 @@ function MentionToken(props: { value: string }) {
 	return <span style={{ color: "blue" }}>@{props.value}</span>
 }
 
-function AutocompletePopup(props: AutocompleteTokenPluginState<string>) {
-	if (!props.active) {
+function AutocompletePopup(props: {
+	state: AutocompleteTokenPluginState<string>
+	actions: {
+		onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
+		onClose: () => void
+	}
+}) {
+	if (!props.state.active) {
 		return null
 	}
-	const { suggestions, index, rect, queryText } = props
+
+	return <AutocompletePopupInner {...props.state} {...props.actions} />
+}
+
+function AutocompletePopupInner(
+	props: AutocompleteTokenPluginActiveState<string> & {
+		onCreate: (nodeAttr: string, range: { from: number; to: number }) => void
+		onClose: () => void
+	}
+) {
+	const { rect, text, onClose, range, onCreate } = props
+
+	const misses = useRef(0)
+
+	const suggestions = useMemo(() => {
+		const list = getSuggestions(text)
+		if (list.length === 0) {
+			misses.current++
+		} else {
+			misses.current = 0
+		}
+		return list
+	}, [text])
+
+	const [index, setIndex] = useState(0)
+
+	useKeyboard({
+		ArrowUp: () => {
+			setIndex(strangle(index - 1, [0, suggestions.length - 1]))
+			return true
+		},
+		ArrowDown: () => {
+			console.log("Down")
+			setIndex(strangle(index + 1, [0, suggestions.length - 1]))
+			return true
+		},
+		Enter: () => {
+			if (index < suggestions.length) {
+				onCreate(suggestions[index], range)
+				onClose()
+			}
+			return true
+		},
+		Escape: () => {
+			onClose()
+			return true
+		},
+	})
+
+	useEffect(() => {
+		if (misses.current > 5) {
+			onClose()
+		}
+	}, [misses.current > 5])
+
 	return (
 		<div
 			style={{
@@ -358,7 +380,7 @@ function AutocompletePopup(props: AutocompleteTokenPluginState<string>) {
 				border: "1px solid black",
 			}}
 		>
-			<div>Query: "{queryText}"</div>
+			<div>Query: "{text}"</div>
 			{suggestions.length === 0 && <div>No Results</div>}
 			{suggestions.map((suggestion, i) => {
 				return (
@@ -369,6 +391,10 @@ function AutocompletePopup(props: AutocompleteTokenPluginState<string>) {
 			})}
 		</div>
 	)
+}
+
+function strangle(n: number, minMax: [number, number]) {
+	return Math.max(Math.min(n, minMax[1]), minMax[0])
 }
 
 // ==================================================================
