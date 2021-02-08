@@ -148,7 +148,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		},
 		props: {
 			handleKeyDown(view, e) {
-				var state = this.getState(view.state)
+				const state = this.getState(view.state)
 
 				const dispatch = (action: AutocompleteTokenPluginAction) => {
 					view.dispatch(view.state.tr.setMeta(pluginKey, action))
@@ -187,14 +187,6 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					}
 				}
 
-				if (!state.active) {
-					return false
-				}
-
-				// Delegate to the global keyboard stack.
-				if (keyboardStack.handleKeyDown(e)) {
-					return true
-				}
 				return false
 			},
 			decorations(editorState) {
@@ -468,6 +460,15 @@ export function Editor() {
 			},
 			dispatchTransaction(transaction) {
 				view.updateState(view.state.apply(transaction))
+			},
+			handleKeyDown(view, event) {
+				// Delegate to the global keyboard stack.
+				if (keyboardStack.handleKeyDown(event)) {
+					// Don't bubble up so we only handle this event once.
+					event.stopPropagation()
+					return true
+				}
+				return false
 			},
 		})
 
