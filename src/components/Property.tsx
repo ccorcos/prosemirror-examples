@@ -1,6 +1,6 @@
 /*
 
-Pill example.
+Property example.
 
 Resources:
 https://prosemirror.net/examples/footnote/
@@ -20,6 +20,7 @@ import {
 	NodeSelection,
 	Plugin,
 	PluginKey,
+	TextSelection,
 } from "prosemirror-state"
 import {
 	Decoration,
@@ -143,17 +144,25 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			const property = node.attrs[nodeName]
 			this.dom.setAttribute(dataAttr, property)
 
+			this.dom.style.background = "#ddd"
+
 			const label = document.createElement("span")
 			label.innerText = "." + property + ":" + nbsp // non-breaking space; nbsp;
 			this.dom.appendChild(label)
 
 			const value = document.createElement("span")
 			this.dom.appendChild(value)
+			this.dom.appendChild(document.createTextNode(nbsp))
 
 			// Create the inner document.
 			this.innerView = new EditorView(value, {
 				attributes: {
-					style: "display: inline; padding: 0 0.5em; border: 1px solid gray;",
+					style: [
+						"display: inline",
+						"outline: 0px solid transparent",
+						"-webkit-font-smoothing: auto",
+						"min-width:2em",
+					].join(";"),
 				},
 				state: EditorState.create({
 					doc: this.node,
@@ -164,8 +173,34 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 							"Mod-y": () =>
 								redo(this.outerView.state, this.outerView.dispatch),
 						}),
+						new Plugin({
+							props: {
+								decorations(state) {
+									let doc = state.doc
+									if (doc.childCount === 0) {
+										const span = document.createElement("span")
+										span.innerText = "_"
+										span.style.color = "#bbb"
+										return DecorationSet.create(doc, [
+											Decoration.widget(0, span),
+										])
+									}
+								},
+							},
+						}),
 					],
 				}),
+				handleKeyDown: (view, event) => {
+					if (event.key === "Enter") {
+						const { tr, doc, selection } = this.outerView.state
+						this.outerView.dispatch(
+							tr.setSelection(TextSelection.create(doc, selection.$head.pos))
+						)
+						this.outerView.focus()
+						return true
+					}
+					return false
+				},
 				dispatchTransaction: this.dispatchInner.bind(this),
 				handleDOMEvents: {
 					mousedown: () => {
@@ -181,9 +216,6 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		dispatchInner(tr) {
-			if (!this.innerView) {
-				return
-			}
 			let { state, transactions } = this.innerView.state.applyTransaction(tr)
 			this.innerView.updateState(state)
 
@@ -200,7 +232,10 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		update(node) {
-			if (!node.sameMarkup(this.node)) return false
+			if (!node.sameMarkup(this.node)) {
+				// Not sure when this happens.
+				return false
+			}
 			this.node = node
 			if (this.innerView) {
 				let state = this.innerView.state
@@ -235,8 +270,20 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			this.innerView.destroy()
 		}
 
-		stopEvent(event) {
-			return this.innerView.dom.contains(event.target)
+		stopEvent(e: Event) {
+			const event = e as KeyboardEvent
+
+			const selection = this.innerView.state.selection
+			if (
+				selection.$anchor.pos === 0 &&
+				selection.$head.pos === 0 &&
+				event.key === "Backspace"
+			) {
+				console.log("Don't stop")
+				return false
+			}
+
+			return this.innerView.dom.contains(event.target as HTMLElement)
 		}
 
 		ignoreMutation() {
@@ -370,7 +417,13 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						const node = view.state.schema.nodes[nodeName].create({
 							[nodeName]: value,
 						})
-						view.dispatch(view.state.tr.replaceWith(range.from, range.to, node))
+
+						const tr = view.state.tr.replaceWith(range.from, range.to, node)
+
+						// Select the node to enter data inside.
+						view.dispatch(
+							tr.setSelection(NodeSelection.create(tr.doc, range.from))
+						)
 					}
 
 					const dispatch = (action: AutocompleteTokenPluginAction) => {
@@ -399,13 +452,12 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		} as Extension<N>["nodeViews"],
 		plugins: [
 			autocompleteTokenPlugin,
-			// Delete token when it is selected.
+			// Delete token when it is selected (and allowed to bubble up from stopEvent).
 			keymap<Schema>({
 				Backspace: (state, dispatch) => {
 					const { node } = state.selection as NodeSelection
 					if (node) {
 						node.type === state.schema.nodes[nodeName]
-						console.log(node)
 						if (dispatch) {
 							dispatch(state.tr.deleteSelection())
 						}
@@ -485,7 +537,6 @@ function AutocompletePopupInner(
 			return true
 		},
 		ArrowDown: () => {
-			console.log("Down")
 			setIndex(strangle(index + 1, [0, suggestions.length - 1]))
 			return true
 		},
@@ -624,3 +675,6 @@ export function Editor() {
 	}, [])
 	return <div ref={ref}></div>
 }
+
+// Delete from beginning
+// Enter to exit the node

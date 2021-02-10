@@ -2,7 +2,7 @@ import * as React from "react"
 import { HashRouter as Router, Switch, Route, Link } from "react-router-dom"
 import { Editor as Autocomplete } from "./Autocomplete"
 import { Focus } from "./Focus"
-import { Editor as Pill } from "./Pill"
+import { Editor as Property } from "./Property"
 
 export function App() {
 	return (
@@ -16,7 +16,7 @@ export function App() {
 						<Link to="/">Autocomplete</Link>
 					</div>
 					<div style={{ display: "inline-block", paddingRight: "1em" }}>
-						<Link to="/pill">Pill</Link>
+						<Link to="/property">Property</Link>
 					</div>
 					<div style={{ display: "inline-block", paddingRight: "1em" }}>
 						<Link to="/focus">Focus</Link>
@@ -27,8 +27,8 @@ export function App() {
 					<Route path="/focus">
 						<Focus />
 					</Route>
-					<Route path="/pill">
-						<Pill />
+					<Route path="/property">
+						<Property />
 					</Route>
 					<Route path="/">
 						<Autocomplete />
