@@ -5,6 +5,11 @@ Property example.
 Resources:
 https://prosemirror.net/examples/footnote/
 
+TODO:
+- Write lots of comments. Understand every line of code.
+- Selection inside is saved and does not place correctly based on arrowkeys.
+- Undo when deleting from the inside.
+
 */
 
 import React, {
@@ -258,6 +263,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		selectNode() {
+			console.log("SelectNode")
 			this.dom.classList.add("ProseMirror-selectednode")
 			this.innerView.focus()
 		}
@@ -675,6 +681,3 @@ export function Editor() {
 	}, [])
 	return <div ref={ref}></div>
 }
-
-// Delete from beginning
-// Enter to exit the node
