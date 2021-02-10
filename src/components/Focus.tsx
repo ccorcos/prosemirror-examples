@@ -8,21 +8,13 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 
 */
 
-import ReactDOM from "react-dom"
 import React, { useLayoutEffect, useRef } from "react"
 import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
-import {
-	Plugin,
-	PluginKey,
-	EditorState,
-	NodeSelection,
-	TextSelection,
-} from "prosemirror-state"
-import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
+import { EditorState, TextSelection } from "prosemirror-state"
+import { EditorView } from "prosemirror-view"
 import { history, undo, redo } from "prosemirror-history"
 import { keymap } from "prosemirror-keymap"
 import { toggleMark } from "prosemirror-commands"
-import "./Autocomplete.css"
 
 const doc: NodeSpec = {
 	content: "block+",

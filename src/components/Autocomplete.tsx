@@ -8,6 +8,7 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 
 */
 
+import { css } from "glamor"
 import ReactDOM from "react-dom"
 import React, {
 	useEffect,
@@ -27,8 +28,11 @@ import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
 import { history, undo, redo } from "prosemirror-history"
 import { keymap } from "prosemirror-keymap"
 import { toggleMark } from "prosemirror-commands"
-import "./Autocomplete.css"
 import { keyboardStack, useKeyboard } from "./Keyboard"
+
+css.global("[data-mention].ProseMirror-selectednode", {
+	outline: "1px solid blue",
+})
 
 // ==================================================================
 // Autocomplete Plugin
