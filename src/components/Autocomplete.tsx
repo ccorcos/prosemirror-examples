@@ -30,10 +30,6 @@ import { keymap } from "prosemirror-keymap"
 import { toggleMark } from "prosemirror-commands"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
-css.global("[data-mention].ProseMirror-selectednode", {
-	outline: "1px solid blue",
-})
-
 // ==================================================================
 // Autocomplete Plugin
 // ==================================================================
@@ -279,6 +275,10 @@ const getSuggestions = (queryText: string) => {
 		"Simon Last",
 	].filter((str) => str.toLowerCase().includes(queryText.toLowerCase()))
 }
+
+css.global("[data-mention].ProseMirror-selectednode", {
+	outline: "1px solid blue",
+})
 
 const mentionAutocomplete = createAutocompleteTokenPlugin({
 	nodeName: "mention",
