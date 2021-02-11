@@ -331,21 +331,24 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		stopEvent(e: Event) {
-			const event = e as KeyboardEvent
+			if (e.type === "keydown") {
+				const event = e as KeyboardEvent
 
-			// Delete from the beginning will allow bubbling up to delete the node.
-			// We'll also bring focus back to the outer editor so we can keep typing.
-			const selection = this.innerView.state.selection
-			if (
-				selection.$anchor.pos === 0 &&
-				selection.$head.pos === 0 &&
-				event.key === "Backspace"
-			) {
-				this.outerView.focus()
-				return false
+				// Delete from the beginning will allow bubbling up to delete the node.
+				// We'll also bring focus back to the outer editor so we can keep typing.
+				const selection = this.innerView.state.selection
+				if (
+					selection.$anchor.pos === 0 &&
+					selection.$head.pos === 0 &&
+					event.key === "Backspace"
+				) {
+					console.log("Allow")
+					this.outerView.focus()
+					return false
+				}
 			}
 
-			return this.innerView.dom.contains(event.target as HTMLElement)
+			return this.innerView.dom.contains(e.target as HTMLElement)
 		}
 
 		ignoreMutation() {
