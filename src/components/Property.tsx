@@ -5,15 +5,10 @@ Property example.
 Resources:
 https://prosemirror.net/examples/footnote/
 
-
-- Write lots of comments. Understand every line of code.
-- Bug: can't shift select right with arrow keys.
-
 QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
 
 ProseMirror Asks:
 - Set custom state properties so I can have my own "focused" state for the editor view.
-
 
 */
 
