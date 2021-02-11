@@ -50,7 +50,7 @@ import { history, undo, redo } from "prosemirror-history"
 import { toggleMark } from "prosemirror-commands"
 import { css } from "glamor"
 import ReactDOM from "react-dom"
-import { useKeyboard } from "./Keyboard"
+import { keyboardStack, useKeyboard } from "./Keyboard"
 
 const nbsp = "\xa0"
 
@@ -273,14 +273,54 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			return true
 		}
 
+		handleKeyboard = (event: KeyboardEvent) => {
+			// Focus on enter.
+			if (this.outerView.hasFocus() && event.key === "Enter") {
+				const {
+					state: { tr, doc },
+				} = this.innerView
+
+				const selection = TextSelection.between(
+					doc.resolve(0),
+					doc.resolve(doc.content.size)
+				)
+
+				this.innerView.dispatch(tr.setSelection(selection))
+				this.innerView.focus()
+				return true
+			}
+
+			// Unfocus on escape
+			if (
+				this.innerView.hasFocus() &&
+				event.key === "Escape" &&
+				// If the value is empty, then don't allow blur so that when you type,
+				// you don't overwrite.
+				this.innerView.state.doc.childCount !== 0
+			) {
+				this.outerView.focus()
+				return true
+			}
+
+			return false
+		}
+
 		selectNode() {
-			console.log("SelectNode")
 			this.dom.classList.add("ProseMirror-selectednode")
-			this.innerView.focus()
+
+			// Another example of the gymnastics this keyboardStack helps with.
+			keyboardStack.add(this.handleKeyboard)
+
+			// Automatically focus if it's empty. This allows us to focus immediately
+			// after creation and means that you cannot overwrite an empty property node.
+			if (this.innerView.state.doc.childCount === 0) {
+				this.innerView.focus()
+			}
 		}
 
 		deselectNode() {
 			this.dom.classList.remove("ProseMirror-selectednode")
+			keyboardStack.remove(this.handleKeyboard)
 		}
 
 		destroy() {
@@ -290,13 +330,15 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		stopEvent(e: Event) {
 			const event = e as KeyboardEvent
 
+			// Delete from the beginning will allow bubbling up to delete the node.
+			// We'll also bring focus back to the outer editor so we can keep typing.
 			const selection = this.innerView.state.selection
 			if (
 				selection.$anchor.pos === 0 &&
 				selection.$head.pos === 0 &&
 				event.key === "Backspace"
 			) {
-				console.log("Don't stop")
+				this.outerView.focus()
 				return false
 			}
 

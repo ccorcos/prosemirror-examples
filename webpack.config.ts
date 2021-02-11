@@ -4,6 +4,7 @@ import HtmlWebpackPlugin from "html-webpack-plugin"
 import MiniCssExtractPlugin from "mini-css-extract-plugin"
 
 const config: Configuration = {
+	mode: "development",
 	entry: "./src/index.tsx",
 	resolve: {
 		extensions: [".js", ".ts", ".tsx"],
