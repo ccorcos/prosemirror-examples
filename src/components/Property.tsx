@@ -6,18 +6,7 @@ Resources:
 https://prosemirror.net/examples/footnote/
 
 
-TODO:
-- arrow token, select but dont focus on inner editor yet.
-- enter will focus the inner editor. escape will go to the outer editor.
-- enter inside the inner editor will place the cursor after the token in the outer editor.
-- clicking a token will focus inside, lets select all inside as well, when enter -- we almost always want to overwrite.
-
-- don't edit on select - edit only after enter on select, exit goes back to select.
-
-
 - Write lots of comments. Understand every line of code.
-- Selection inside is saved and does not place correctly based on arrowkeys.
-- Undo when deleting from the inside.
 
 QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
 
@@ -209,6 +198,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					],
 				}),
 				handleKeyDown: (view, event) => {
+					// Enter inside the token will move the cursor after the token.
 					if (event.key === "Enter") {
 						const { tr, doc, selection } = this.outerView.state
 						this.outerView.dispatch(
@@ -219,13 +209,21 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					}
 					return false
 				},
+
 				dispatchTransaction: this.dispatchInner.bind(this),
 				handleDOMEvents: {
 					mousedown: () => {
-						// Kludge to prevent issues due to the fact that the whole
-						// footnote is node-selected (and thus DOM-selected) when
-						// the parent editor is focused.
-						if (this.outerView.hasFocus()) this.innerView.focus()
+						// Focus the innerView on mousedown do you can make a selection inside.
+						// Also set the outerView's node selection to feel consistent with using just the keyboard.
+						if (this.outerView.hasFocus()) {
+							const {
+								state: { doc, tr },
+							} = this.outerView
+							this.outerView.dispatch(
+								tr.setSelection(NodeSelection.create(doc, this.getPos()))
+							)
+							this.innerView.focus()
+						}
 
 						return false
 					},
@@ -326,6 +324,13 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		destroy() {
+			// When you create a token, type in the middle, then undo the creation of the entire
+			// token with focus inside the innerView, then we want to re-focus the outerView so
+			// we can keep typing.
+			if (this.innerView.hasFocus()) {
+				this.outerView.focus()
+			}
+
 			this.innerView.destroy()
 			keyboardStack.remove(this.handleKeyboard)
 		}
@@ -335,15 +340,13 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				const event = e as KeyboardEvent
 
 				// Delete from the beginning will allow bubbling up to delete the node.
-				// We'll also bring focus back to the outer editor so we can keep typing.
+				// We don't have to focus the outerView because that will happen in destroy()
 				const selection = this.innerView.state.selection
 				if (
 					selection.$anchor.pos === 0 &&
 					selection.$head.pos === 0 &&
 					event.key === "Backspace"
 				) {
-					console.log("Allow")
-					this.outerView.focus()
 					return false
 				}
 			}
