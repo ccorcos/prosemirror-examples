@@ -188,6 +188,8 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 								undo(this.outerView.state, this.outerView.dispatch),
 							"Mod-y": () =>
 								redo(this.outerView.state, this.outerView.dispatch),
+							"Mod-Shift-z": () =>
+								redo(this.outerView.state, this.outerView.dispatch),
 						}),
 						new Plugin({
 							props: {
@@ -325,6 +327,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 
 		destroy() {
 			this.innerView.destroy()
+			keyboardStack.remove(this.handleKeyboard)
 		}
 
 		stopEvent(e: Event) {
@@ -706,7 +709,7 @@ export function Editor() {
 			doc: schema.nodeFromJSON(initialDoc),
 			plugins: [
 				history(),
-				keymap({ "Mod-z": undo, "Mod-y": redo }),
+				keymap({ "Mod-z": undo, "Mod-y": redo, "Mod-Shift-z": redo }),
 				keymap({ "Mod-b": toggleMark(schema.marks.bold) }),
 				...propertyAutocomplete.plugins,
 			],
