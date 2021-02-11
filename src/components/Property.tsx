@@ -7,8 +7,13 @@ https://prosemirror.net/examples/footnote/
 
 
 - Write lots of comments. Understand every line of code.
+- Bug: can't shift select right with arrow keys.
 
 QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
+
+ProseMirror Asks:
+- Set custom state properties so I can have my own "focused" state for the editor view.
+
 
 */
 
@@ -26,6 +31,7 @@ import {
 	Plugin,
 	PluginKey,
 	TextSelection,
+	Transaction,
 } from "prosemirror-state"
 import {
 	Decoration,
@@ -41,6 +47,7 @@ import { css } from "glamor"
 import ReactDOM from "react-dom"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
+// Non-breaking space.
 const nbsp = "\xa0"
 
 // ==================================================================
@@ -106,6 +113,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		attrs: { [nodeName]: { default: "" } },
 		parseDOM: [
 			{
+				// Make sure we set this dataAttr in the NodeView.
 				tag: `span[${dataAttr}]`,
 				getAttrs: (dom) => {
 					if (dom instanceof HTMLElement) {
@@ -115,14 +123,6 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				},
 			},
 		],
-		// TODO: use NodeView instead.
-		// toDOM: (node) => {
-		// 	const span = document.createElement("span")
-		// 	const nodeAttr = node.attrs[nodeName]
-		// 	span.setAttribute(dataAttr, node.attrs[nodeName])
-		// 	renderToken(span, nodeAttr)
-		// 	return span
-		// },
 	}
 
 	// This is an inline element with content.
@@ -144,6 +144,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			this.outerView = view
 			this.getPos = getPos as any
 
+			// Construct and style the DOM element.
 			this.dom = document.createElement("span")
 
 			const property = node.attrs[nodeName]
@@ -152,7 +153,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			this.dom.style.background = "#ddd"
 
 			const label = document.createElement("span")
-			label.innerText = "." + property + ":" + nbsp // non-breaking space; nbsp;
+			label.innerText = "." + property + ":" + nbsp
 			this.dom.appendChild(label)
 
 			const value = document.createElement("span")
@@ -161,6 +162,16 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 
 			// Create the inner document.
 			this.innerView = new EditorView(value, {
+				// Disable editing when the node is not selected to that the keyboard arrow
+				// keys can move around this token.
+				editable: () => {
+					// This document is editable only when the outerView has this node selected.
+					// It's possbile for this node to be selected without focus on the innerView,
+					// but when we press Enter, we want this node to already be editable.
+					const selection = this.outerView.state.selection as NodeSelection
+					const editable = selection.node === this.node
+					return editable
+				},
 				attributes: {
 					style: [
 						"display: inline",
@@ -180,6 +191,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 							"Mod-Shift-z": () =>
 								redo(this.outerView.state, this.outerView.dispatch),
 						}),
+						// This plugin uses ProseMirror's decoration feature for placeholders.
 						new Plugin({
 							props: {
 								decorations(state) {
@@ -204,17 +216,18 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						this.outerView.dispatch(
 							tr.setSelection(TextSelection.create(doc, selection.$head.pos))
 						)
-						this.outerView.focus()
+						this.focusOuterView()
 						return true
 					}
 					return false
 				},
 
-				dispatchTransaction: this.dispatchInner.bind(this),
+				dispatchTransaction: this.dispatchInner,
 				handleDOMEvents: {
 					mousedown: () => {
 						// Focus the innerView on mousedown do you can make a selection inside.
-						// Also set the outerView's node selection to feel consistent with using just the keyboard.
+						// Also set the outerView's node selection to feel consistent with using
+						// just the keyboard.
 						if (this.outerView.hasFocus()) {
 							const {
 								state: { doc, tr },
@@ -222,6 +235,8 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 							this.outerView.dispatch(
 								tr.setSelection(NodeSelection.create(doc, this.getPos()))
 							)
+							// Dispatch an empty transaction so that we recompute EditorView.editable()
+							this.innerView.dispatch(this.innerView.state.tr)
 							this.innerView.focus()
 						}
 
@@ -231,10 +246,19 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			})
 		}
 
-		dispatchInner(tr) {
+		focusOuterView() {
+			this.outerView.focus()
+			// Dispatch an empty transaction so that we recompute EditorView.editable()
+			this.innerView.dispatch(this.innerView.state.tr)
+		}
+
+		dispatchInner = (tr: Transaction) => {
 			let { state, transactions } = this.innerView.state.applyTransaction(tr)
 			this.innerView.updateState(state)
 
+			// This code was taken from https://prosemirror.net/examples/footnote/
+			// It looks like this code takes normal editing transactions and passes them
+			// on to the outerView using `this.getPos()` to offset correctly.
 			if (!tr.getMeta("fromOutside")) {
 				let outerTr = this.outerView.state.tr,
 					offsetMap = StepMap.offset(this.getPos() + 1)
@@ -243,38 +267,44 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 					for (let j = 0; j < steps.length; j++)
 						outerTr.step(steps[j].map(offsetMap)!)
 				}
-				if (outerTr.docChanged) this.outerView.dispatch(outerTr)
+				if (outerTr.docChanged) {
+					this.outerView.dispatch(outerTr)
+				}
 			}
 		}
 
+		// TODO: ProsemirrorNode<Schema> doesn't work here.
 		update(node) {
 			if (!node.sameMarkup(this.node)) {
-				// Not sure when this happens.
 				return false
 			}
+
+			// This code was taken from https://prosemirror.net/examples/footnote/
+			// We've wired up undo/redo so that the outerView executes the undo.
+			// When the outerView changes the state of this node, we need to update
+			// the innerView state to match.
 			this.node = node
-			if (this.innerView) {
-				let state = this.innerView.state
-				let start = node.content.findDiffStart(state.doc.content)
-				if (start != null) {
-					let { a: endA, b: endB } = node.content.findDiffEnd(state.doc.content)
-					let overlap = start - Math.min(endA, endB)
-					if (overlap > 0) {
-						endA += overlap
-						endB += overlap
-					}
-					this.innerView.dispatch(
-						state.tr
-							.replace(start, endB, node.slice(start, endA))
-							.setMeta("fromOutside", true)
-					)
+			let state = this.innerView.state
+			let start = node.content.findDiffStart(state.doc.content)
+			if (start != null) {
+				let { a: endA, b: endB } = node.content.findDiffEnd(state.doc.content)
+				let overlap = start - Math.min(endA, endB)
+				if (overlap > 0) {
+					endA += overlap
+					endB += overlap
 				}
+				this.innerView.dispatch(
+					state.tr
+						.replace(start, endB, node.slice(start, endA))
+						.setMeta("fromOutside", true)
+				)
 			}
 			return true
 		}
 
+		// This callback is only called when the node is selected from the outerView.
 		handleKeyboard = (event: KeyboardEvent) => {
-			// Focus on enter.
+			// If the node is selected, focus the innerView on Enter and select all.
 			if (this.outerView.hasFocus() && event.key === "Enter") {
 				const {
 					state: { tr, doc },
@@ -290,15 +320,15 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				return true
 			}
 
-			// Unfocus on escape
+			// Unfocus the innerView on Escape unless the value is empty.
+			// When the innerView is empty and the node is selected, we want the user to type
+			// into the innerView instead of overwrite the token.
 			if (
 				this.innerView.hasFocus() &&
 				event.key === "Escape" &&
-				// If the value is empty, then don't allow blur so that when you type,
-				// you don't overwrite.
 				this.innerView.state.doc.childCount !== 0
 			) {
-				this.outerView.focus()
+				this.focusOuterView()
 				return true
 			}
 
@@ -308,11 +338,15 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		selectNode() {
 			this.dom.classList.add("ProseMirror-selectednode")
 
-			// Another example of the gymnastics this keyboardStack helps with.
+			// A good example of the gymnastics this keyboardStack helps with.
 			keyboardStack.add(this.handleKeyboard)
 
-			// Automatically focus if it's empty. This allows us to focus immediately
-			// after creation and means that you cannot overwrite an empty property node.
+			// Dispatch an empty transaction so that we recompute EditorView.editable()
+			this.innerView.dispatch(this.innerView.state.tr)
+
+			// Automatically focus the innerView if it's empty. This allows us to focus
+			// immediately after creation and means that you cannot overwrite when the
+			// node is selected the innerView is empty.
 			if (this.innerView.state.doc.childCount === 0) {
 				this.innerView.focus()
 			}
@@ -321,6 +355,9 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		deselectNode() {
 			this.dom.classList.remove("ProseMirror-selectednode")
 			keyboardStack.remove(this.handleKeyboard)
+
+			// Dispatch an empty transaction so that we recompute EditorView.editable()
+			this.innerView.dispatch(this.innerView.state.tr)
 		}
 
 		destroy() {
@@ -328,7 +365,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			// token with focus inside the innerView, then we want to re-focus the outerView so
 			// we can keep typing.
 			if (this.innerView.hasFocus()) {
-				this.outerView.focus()
+				this.focusOuterView()
 			}
 
 			this.innerView.destroy()
