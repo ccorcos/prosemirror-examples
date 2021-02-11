@@ -5,10 +5,21 @@ Property example.
 Resources:
 https://prosemirror.net/examples/footnote/
 
+
 TODO:
+- arrow token, select but dont focus on inner editor yet.
+- enter will focus the inner editor. escape will go to the outer editor.
+- enter inside the inner editor will place the cursor after the token in the outer editor.
+- clicking a token will focus inside, lets select all inside as well, when enter -- we almost always want to overwrite.
+
+- don't edit on select - edit only after enter on select, exit goes back to select.
+
+
 - Write lots of comments. Understand every line of code.
 - Selection inside is saved and does not place correctly based on arrowkeys.
 - Undo when deleting from the inside.
+
+QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
 
 */
 
