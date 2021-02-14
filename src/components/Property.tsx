@@ -10,8 +10,6 @@ QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
 ProseMirror Asks:
 - Set custom state properties so I can have my own "focused" state for the editor view.
 
-TODO: enter on empty does not place cursor after
-
 */
 
 import React, {
