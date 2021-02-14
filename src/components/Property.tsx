@@ -10,6 +10,8 @@ QA Doc: https://www.notion.so/ProseMirror-QA-65c6e1e971084547b6d6778c8e14bc6a
 ProseMirror Asks:
 - Set custom state properties so I can have my own "focused" state for the editor view.
 
+TODO: enter on empty does not place cursor after
+
 */
 
 import React, {
@@ -206,7 +208,9 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				}),
 				handleKeyDown: (view, event) => {
 					// Enter inside the token will move the cursor after the token.
-					if (event.key === "Enter") {
+					// If the token is empty, keep focus on enter so you aren't confused about focus
+					// when you first create the token.
+					if (event.key === "Enter" && view.state.doc.childCount !== 0) {
 						const { tr, doc, selection } = this.outerView.state
 						this.outerView.dispatch(
 							tr.setSelection(TextSelection.create(doc, selection.$head.pos))
