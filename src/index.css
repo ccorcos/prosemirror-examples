@@ -1,0 +1,28 @@
+html {
+	--selection-color: ;
+	--selection-margin: 0.4em;
+}
+
+.custom-selection {
+	position: relative;
+}
+
+img.custom-selection {
+	position: relative;
+	outline: 0.4em solid rgba(89, 87, 214, 0.2);
+}
+
+.custom-selection:after {
+	content: "";
+	position: absolute;
+	left: -0.4em;
+	right: -0.4em;
+	top: -0.4em;
+	bottom: -0.4em;
+	background: rgba(89, 87, 214, 0.2);
+	pointer-events: none;
+}
+
+li.custom-selection:after {
+	left: -2em;
+}

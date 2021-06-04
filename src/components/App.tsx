@@ -5,6 +5,8 @@ import { Focus } from "./Focus"
 import { Editor as Property } from "./Property"
 import { BlockSelection } from "./BlockSelection"
 import "prosemirror-view/style/prosemirror.css"
+import "../index.css"
+import { BlockSelectionPlugin } from "./BlockSelectionPlugin"
 
 export function App() {
 	return (
@@ -26,6 +28,9 @@ export function App() {
 					<div style={{ display: "inline-block", paddingRight: "1em" }}>
 						<Link to="/block-selection">Block Selection</Link>
 					</div>
+					<div style={{ display: "inline-block", paddingRight: "1em" }}>
+						<Link to="/block-selection-plugin">Block Selection Plugin</Link>
+					</div>
 				</div>
 
 				<Switch>
@@ -37,6 +42,9 @@ export function App() {
 					</Route>
 					<Route path="/block-selection">
 						<BlockSelection />
+					</Route>
+					<Route path="/block-selection-plugin">
+						<BlockSelectionPlugin />
 					</Route>
 					<Route path="/">
 						<Autocomplete />
