@@ -8,7 +8,6 @@ import { exampleSetup } from "prosemirror-example-setup"
 
 import {
 	EditorState,
-	NodeSelection,
 	Selection,
 	TextSelection,
 	Transaction,
@@ -16,7 +15,12 @@ import {
 	PluginKey,
 } from "prosemirror-state"
 import { css } from "glamor"
-import { keydownHandler, keymap } from "prosemirror-keymap"
+import { keydownHandler } from "prosemirror-keymap"
+
+// TODO:
+// - how can we use this same logic as a 'custom' Selection on state.selection?
+//   - main goal here is to get blur the text selection during block selection, both browser and proremirror.
+// - expand selections with shift-arrow keys,
 
 // Annoying hack so that we can use this type.
 type ProsemirrorNode<S extends Schema = Schema> = ReturnType<
