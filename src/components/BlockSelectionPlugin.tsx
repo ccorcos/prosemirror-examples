@@ -27,13 +27,18 @@ type ProsemirrorNode<S extends Schema = Schema> = ReturnType<
 	NodeType<S>["create"]
 >
 
+function resolveNode($from: ResolvedPos) {
+	const node = $from.nodeAfter!
+	const $to = $from.node(0).resolve($from.pos + node.nodeSize)
+	return { $from, $to, node }
+}
+
 class BlockSelection {
 	public $from: ResolvedPos
 	public $to: ResolvedPos
 	constructor($from: ResolvedPos, $to?: ResolvedPos) {
 		if (!$to) {
-			let node = $from.nodeAfter!
-			$to = $from.node(0).resolve($from.pos + node.nodeSize)
+			$to = resolveNode($from).$to
 		}
 		this.$from = $from
 		this.$to = $to
@@ -99,13 +104,13 @@ const selectNextSibling: SelectionAction = (state, selection) => {
 }
 
 const selectPrevSibling: SelectionAction = (state, selection) => {
-	const { $to } = selection
-	const prevIndex = $to.indexAfter() - 2
+	const { $from } = selection
+	const prevIndex = $from.indexAfter() - 1
 
 	// We're at the first sibling.
 	if (prevIndex < 0) return
 
-	const pos = $to.posAtIndex(prevIndex)
+	const pos = $from.posAtIndex(prevIndex)
 	return BlockSelection.create(state.doc, pos)
 }
 
@@ -126,6 +131,32 @@ const selectNext: SelectionAction = (state, selection) => {
 			return nextSelection
 		}
 	}
+}
+
+const expandNext: SelectionAction = (state, selection) => {
+	const next = selectNext(state, selection)
+	if (!next) {
+		return
+	}
+
+	return BlockSelection.create(
+		state.doc,
+		Math.min(selection.$from.pos, next.$from.pos),
+		Math.max(selection.$to.pos, next.$to.pos)
+	)
+}
+
+const expandPrev: SelectionAction = (state, selection) => {
+	const prev = selectPrev(state, selection)
+	if (!prev) {
+		return
+	}
+
+	return BlockSelection.create(
+		state.doc,
+		Math.min(selection.$from.pos, prev.$from.pos),
+		Math.max(selection.$to.pos, prev.$to.pos)
+	)
 }
 
 const selectLastChild: SelectionAction = (state, selection) => {
@@ -384,25 +415,53 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 
 				// Select next block
 				ArrowDown: selectionCommmand(selectNext, true),
+				"Shift-ArrowDown": selectionCommmand(expandNext, true),
 
 				// Select previous block
 				ArrowUp: selectionCommmand(selectPrev, true),
+				"Shift-ArrowUp": selectionCommmand(expandPrev, true),
 			})
 
 			return handler(view, event)
 		},
 		decorations(editorState) {
 			const state: BlockSelectionPluginState = this.getState(editorState)
-			console.log("Here", state)
+
 			if (state === null) {
 				return null
 			}
-			const { $from, $to } = state
-			return DecorationSet.create(editorState.doc, [
-				Decoration.node($from.pos, $to.pos, {
-					class: "custom-selection",
-				}),
-			])
+			console.log(`BlockSelection(${state.$from.pos}, ${state.$to.pos})`)
+
+			const ranges: Array<[number, number]> = []
+
+			// Set to true to show nested highlights.
+			const showNested = false
+
+			let lastPos = -1
+			let nodeRange = new BlockSelection(state.$from)
+			while (nodeRange.$from.pos < state.$to.pos) {
+				if (showNested) {
+					ranges.push([nodeRange.$from.pos, nodeRange.$to.pos])
+				} else if (nodeRange.$from.pos >= lastPos) {
+					ranges.push([nodeRange.$from.pos, nodeRange.$to.pos])
+					lastPos = nodeRange.$to.pos
+				}
+
+				const nextRange = selectNext(editorState, nodeRange)
+				if (!nextRange) {
+					break
+				}
+				nodeRange = nextRange
+			}
+
+			return DecorationSet.create(
+				editorState.doc,
+				ranges.map(([from, to]) =>
+					Decoration.node(from, to, {
+						class: "custom-selection",
+					})
+				)
+			)
 		},
 	},
 })
