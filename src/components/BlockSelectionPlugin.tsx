@@ -18,8 +18,10 @@ import { css } from "glamor"
 import { keydownHandler } from "prosemirror-keymap"
 
 // TODO:
-// - Allow alt+clicking to select multiple disjointed blocks.
 // - how can we use this same logic as a 'custom' Selection on state.selection?
+// - Allow cmd+shift+clicking to select multiple disjointed blocks.
+// - move blocks around
+// - drag and drop
 //
 // LATER:
 // - expandPrev and expandNext should call selectNext when shrinking.
