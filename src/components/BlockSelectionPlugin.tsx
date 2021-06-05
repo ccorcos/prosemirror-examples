@@ -33,9 +33,10 @@ function resolveNode($from: ResolvedPos) {
 	return { $from, $to, node }
 }
 
-class BlockSelection {
+class BlockPos {
 	public $from: ResolvedPos
 	public $to: ResolvedPos
+
 	constructor($from: ResolvedPos, $to?: ResolvedPos) {
 		if (!$to) {
 			$to = resolveNode($from).$to
@@ -43,13 +44,19 @@ class BlockSelection {
 		this.$from = $from
 		this.$to = $to
 	}
+}
 
-	static create(doc: ProsemirrorNode, from: number, to?: number) {
-		if (to === undefined) {
-			return new this(doc.resolve(from))
-		} else {
-			return new this(doc.resolve(from), doc.resolve(to))
-		}
+class BlockSelection {
+	public $anchor: BlockPos
+	public $head: BlockPos
+
+	constructor($anchor: BlockPos, $head?: BlockPos) {
+		this.$anchor = $anchor
+		this.$head = $head || $anchor
+	}
+
+	static create(doc: ProsemirrorNode, from: number) {
+		return new this(new BlockPos(doc.resolve(from)))
 	}
 }
 
@@ -67,6 +74,7 @@ function selectCurrentBlock(
 	return BlockSelection.create(state.doc, pos)
 }
 
+// TODO: SelectionAction should use BlockPos, not BlockSelection.
 // A set of utility functions for transforming selections around the tree.
 type SelectionAction = (
 	state: EditorState<EditorSchema>,
@@ -74,7 +82,7 @@ type SelectionAction = (
 ) => BlockSelection | undefined
 
 const selectParent: SelectionAction = (state, selection) => {
-	const { $from } = selection
+	const { $from } = selection.$head
 	// We're at the top-level
 	if ($from.depth <= 0) return
 
@@ -83,7 +91,7 @@ const selectParent: SelectionAction = (state, selection) => {
 }
 
 const selectFirstChild: SelectionAction = (state, selection) => {
-	const { $from } = selection
+	const { $from } = selection.$head
 
 	// We're at a leaf.
 	// if (!node.firstChild?.isBlock) return
@@ -93,7 +101,7 @@ const selectFirstChild: SelectionAction = (state, selection) => {
 }
 
 const selectNextSibling: SelectionAction = (state, selection) => {
-	const { $to } = selection
+	const { $to } = selection.$head
 	const nextIndex = $to.indexAfter()
 
 	// We're at the last sibling.
@@ -104,7 +112,7 @@ const selectNextSibling: SelectionAction = (state, selection) => {
 }
 
 const selectPrevSibling: SelectionAction = (state, selection) => {
-	const { $from } = selection
+	const { $from } = selection.$head
 	const prevIndex = $from.indexAfter() - 1
 
 	// We're at the first sibling.
@@ -140,12 +148,15 @@ const selectNextParentSubling: SelectionAction = (state, selection) => {
 	}
 }
 
-function expand(a: BlockSelection, b: BlockSelection) {
-	return BlockSelection.create(
-		a.$from.doc,
-		Math.min(a.$from.pos, b.$from.pos),
-		Math.max(a.$to.pos, b.$to.pos)
-	)
+function expand({ $anchor }: BlockSelection, { $head }: BlockSelection) {
+	if (
+		$head.$from.pos <= $anchor.$from.pos &&
+		$head.$to.pos >= $anchor.$to.pos
+	) {
+		return new BlockSelection($head)
+	} else {
+		return new BlockSelection($anchor, $head)
+	}
 }
 
 const expandNext: SelectionAction = (state, selection) => {
@@ -162,15 +173,10 @@ const expandNext: SelectionAction = (state, selection) => {
 
 const expandPrev: SelectionAction = (state, selection) => {
 	const prev = selectPrev(state, selection)
-	if (!prev) {
+	if (prev) {
+		return expand(selection, prev)
 		return
 	}
-
-	return BlockSelection.create(
-		state.doc,
-		Math.min(selection.$from.pos, prev.$from.pos),
-		Math.max(selection.$to.pos, prev.$to.pos)
-	)
 }
 
 const selectLastChild: SelectionAction = (state, selection) => {
@@ -408,7 +414,10 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 						pluginDispatch({ newState: null })
 						dispatch(
 							state.tr.setSelection(
-								TextSelection.create(state.tr.doc, pluginState.$to.pos - 1)
+								TextSelection.create(
+									state.tr.doc,
+									pluginState.$head.$to.pos - 1
+								)
 							)
 						)
 					}
@@ -444,7 +453,9 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 			if (state === null) {
 				return null
 			}
-			console.log(`BlockSelection(${state.$from.pos}, ${state.$to.pos})`)
+			console.log(
+				`BlockSelection(${state.$anchor.$from.pos}, ${state.$head.$to.pos})`
+			)
 
 			const ranges: Array<[number, number]> = []
 
@@ -452,20 +463,25 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 			const showNested = false
 
 			let lastPos = -1
-			let nodeRange = new BlockSelection(state.$from)
-			while (nodeRange.$from.pos < state.$to.pos) {
+
+			const { $anchor, $head } = state
+			const $start = $anchor.$from.pos < $head.$from.pos ? $anchor : $head
+			const $end = $anchor.$from.pos > $head.$from.pos ? $anchor : $head
+
+			let $node = $start
+			while ($node.$from.pos < $end.$to.pos) {
 				if (showNested) {
-					ranges.push([nodeRange.$from.pos, nodeRange.$to.pos])
-				} else if (nodeRange.$from.pos >= lastPos) {
-					ranges.push([nodeRange.$from.pos, nodeRange.$to.pos])
-					lastPos = nodeRange.$to.pos
+					ranges.push([$node.$from.pos, $node.$to.pos])
+				} else if ($node.$from.pos >= lastPos) {
+					ranges.push([$node.$from.pos, $node.$to.pos])
+					lastPos = $node.$to.pos
 				}
 
-				const nextRange = selectNext(editorState, nodeRange)
-				if (!nextRange) {
+				const $next = selectNext(editorState, new BlockSelection($node))
+				if (!$next) {
 					break
 				}
-				nodeRange = nextRange
+				$node = $next.$head
 			}
 
 			return DecorationSet.create(
