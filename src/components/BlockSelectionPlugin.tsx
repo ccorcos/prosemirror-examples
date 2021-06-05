@@ -302,9 +302,22 @@ const initialDocJson: NodeJSON = {
 		{
 			type: "paragraph",
 			content: [
-				{ type: "text", text: "Press escape, then arrow keys, then enter..." },
+				{
+					type: "text",
+					text: "Press escape, then arrow keys, then enter... Try holding to expand the selection.",
+				},
 			],
 		},
+		{
+			type: "paragraph",
+			content: [
+				{
+					type: "text",
+					text: "Also try shift clicking to expand the selection.",
+				},
+			],
+		},
+
 		{
 			type: "paragraph",
 			content: [
@@ -499,7 +512,7 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 		},
 
 		handleDOMEvents: {
-			click(view, event) {
+			mousedown(view, event) {
 				// Handle shift-click to expand selection.
 				const pluginState: BlockSelectionPluginState = this.getState(view.state)
 				if (pluginState === null) {
@@ -523,7 +536,12 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 					return false
 				}
 
+				// Prevent text selection.
+				event.preventDefault()
+
 				const $pos = view.state.doc.resolve(result.pos)
+
+				// TODO: sometimes this doesn't work great and there's a runtime error...
 				const nodePos = $pos.depth === 0 ? $pos.pos : $pos.before()
 
 				const $node = new BlockPosition(view.state.doc.resolve(nodePos))
