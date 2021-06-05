@@ -1,6 +1,0 @@
-.awcache
-.DS_Store
-node_modules
-*.log
-dist
-package-lock.json
