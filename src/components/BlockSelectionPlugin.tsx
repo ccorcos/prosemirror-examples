@@ -125,6 +125,13 @@ const selectNext: SelectionAction = (state, selection) => {
 	}
 
 	// Traverse parents looking for a sibling.
+	return selectNextParentSubling(state, selection)
+}
+
+const selectNextParentSubling: SelectionAction = (state, selection) => {
+	let nextSelection: BlockSelection | undefined
+
+	// Traverse parents looking for a sibling.
 	let parent: BlockSelection | undefined = selection
 	while ((parent = selectParent(state, parent))) {
 		if ((nextSelection = selectNextSibling(state, parent))) {
@@ -133,17 +140,24 @@ const selectNext: SelectionAction = (state, selection) => {
 	}
 }
 
+function expand(a: BlockSelection, b: BlockSelection) {
+	return BlockSelection.create(
+		a.$from.doc,
+		Math.min(a.$from.pos, b.$from.pos),
+		Math.max(a.$to.pos, b.$to.pos)
+	)
+}
+
 const expandNext: SelectionAction = (state, selection) => {
-	const next = selectNext(state, selection)
-	if (!next) {
-		return
+	const nextSibling = selectNextSibling(state, selection)
+	if (nextSibling) {
+		return expand(selection, nextSibling)
 	}
 
-	return BlockSelection.create(
-		state.doc,
-		Math.min(selection.$from.pos, next.$from.pos),
-		Math.max(selection.$to.pos, next.$to.pos)
-	)
+	const nextAbove = selectNextParentSubling(state, selection)
+	if (nextAbove) {
+		return expand(selection, nextAbove)
+	}
 }
 
 const expandPrev: SelectionAction = (state, selection) => {
