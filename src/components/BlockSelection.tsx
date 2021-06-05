@@ -312,6 +312,12 @@ const initialDocJson: NodeJSON = {
 			],
 		},
 		{
+			type: "paragraph",
+			content: [
+				{ type: "text", text: "This uses the internal NodeSelection." },
+			],
+		},
+		{
 			type: "bullet_list",
 			content: [
 				{

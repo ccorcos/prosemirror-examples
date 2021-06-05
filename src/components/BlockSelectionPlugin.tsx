@@ -18,13 +18,11 @@ import { css } from "glamor"
 import { keydownHandler } from "prosemirror-keymap"
 
 // TODO:
-// - expandPrev and expandNext should call selectNext when shrinking.
 // - Allow alt+clicking to select multiple disjointed blocks.
-//
-//
 // - how can we use this same logic as a 'custom' Selection on state.selection?
-//   - main goal here is to get blur the text selection during block selection, both browser and proremirror.
-// - expand selections with shift-arrow keys,
+//
+// LATER:
+// - expandPrev and expandNext should call selectNext when shrinking.
 
 // Annoying hack so that we can use this type.
 type ProsemirrorNode<S extends Schema = Schema> = ReturnType<
@@ -308,6 +306,15 @@ const initialDocJson: NodeJSON = {
 			],
 		},
 		{
+			type: "paragraph",
+			content: [
+				{
+					type: "text",
+					text: "This uses a custom BlockSelection implementation.",
+				},
+			],
+		},
+		{
 			type: "bullet_list",
 			content: [
 				{
@@ -489,6 +496,56 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 			})
 
 			return handler(view, event)
+		},
+
+		handleDOMEvents: {
+			click(view, event) {
+				// Handle shift-click to expand selection.
+				const pluginState: BlockSelectionPluginState = this.getState(view.state)
+				if (pluginState === null) {
+					return false
+				}
+
+				const pluginDispatch = (action: BlockSelectionPluginAction) => {
+					view.dispatch(view.state.tr.setMeta(pluginKey, action))
+				}
+
+				if (!event.shiftKey) {
+					pluginDispatch({ newState: null })
+					return false
+				}
+
+				const result = view.posAtCoords({
+					left: event.clientX,
+					top: event.clientY,
+				})
+				if (!result) {
+					return false
+				}
+
+				const $pos = view.state.doc.resolve(result.pos)
+				const nodePos = $pos.depth === 0 ? $pos.pos : $pos.before()
+
+				const $node = new BlockPosition(view.state.doc.resolve(nodePos))
+				const { $anchor, $head } = pluginState
+
+				const $start = $anchor.$from.pos < $head.$from.pos ? $anchor : $head
+				const $end = $anchor.$from.pos > $head.$from.pos ? $anchor : $head
+
+				// If node is before start
+				if ($node.$from.pos < $start.$from.pos) {
+					pluginDispatch({ newState: new BlockSelection($end, $node) })
+					return true
+				}
+				// If node is after end
+				if ($node.$to.pos > $end.$to.pos) {
+					pluginDispatch({ newState: new BlockSelection($start, $node) })
+					return true
+				}
+				// If node is inside
+				pluginDispatch({ newState: new BlockSelection($anchor, $node) })
+				return true
+			},
 		},
 		decorations(editorState) {
 			const state: BlockSelectionPluginState = this.getState(editorState)
