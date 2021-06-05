@@ -18,6 +18,11 @@ import { css } from "glamor"
 import { keydownHandler } from "prosemirror-keymap"
 
 // TODO:
+// - expandPrev and expandNext should call selectNext when shrinking.
+// - SelectionAction uses BlockPos
+// - Allow alt+clicking to select multiple disjointed blocks.
+//
+//
 // - how can we use this same logic as a 'custom' Selection on state.selection?
 //   - main goal here is to get blur the text selection during block selection, both browser and proremirror.
 // - expand selections with shift-arrow keys,
@@ -172,10 +177,14 @@ const expandNext: SelectionAction = (state, selection) => {
 }
 
 const expandPrev: SelectionAction = (state, selection) => {
-	const prev = selectPrev(state, selection)
-	if (prev) {
-		return expand(selection, prev)
-		return
+	const prevSibling = selectPrevSibling(state, selection)
+	if (prevSibling) {
+		return expand(selection, prevSibling)
+	}
+
+	const parent = selectParent(state, selection)
+	if (parent) {
+		return expand(selection, parent)
 	}
 }
 
@@ -274,7 +283,7 @@ const initialDocJson: NodeJSON = {
 		{
 			type: "heading",
 			attrs: { level: 1 },
-			content: [{ type: "text", text: "Block Selection" }],
+			content: [{ type: "text", text: "Block Selection Plugin" }],
 		},
 		{
 			type: "paragraph",
