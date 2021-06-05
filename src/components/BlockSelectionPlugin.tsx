@@ -62,20 +62,20 @@ class BlockSelection {
 		$head = $head || $anchor
 
 		// When the head encapsulated the anchor.
-		// if (
-		// 	$head.$from.pos <= $anchor.$from.pos &&
-		// 	$head.$to.pos >= $anchor.$to.pos
-		// ) {
-		// 	this.$anchor = $head
-		// 	this.$head = $head
-		// 	// } else if (
-		// 	// 	$head.$from.pos >= $anchor.$from.pos &&
-		// 	// 	$head.$to.pos <= $anchor.$to.pos
-		// 	// ) {
-		// } else {
-		this.$anchor = $anchor
-		this.$head = $head
-		// }
+		if (
+			$head.$from.pos <= $anchor.$from.pos &&
+			$head.$to.pos >= $anchor.$to.pos
+		) {
+			this.$anchor = $head
+			this.$head = $head
+			// } else if (
+			// 	$head.$from.pos >= $anchor.$from.pos &&
+			// 	$head.$to.pos <= $anchor.$to.pos
+			// ) {
+		} else {
+			this.$anchor = $anchor
+			this.$head = $head
+		}
 	}
 
 	static create(doc: ProsemirrorNode, from: number) {
@@ -146,23 +146,20 @@ const selectPrevSibling: SelectionAction = (state, selection) => {
 }
 
 const selectNext: SelectionAction = (state, selection) => {
-	// Next sibling then recursively first child.
 	let nextSelection: BlockPosition | undefined
-	if ((nextSelection = selectNextSibling(state, selection))) {
-		let deepestChild: BlockPosition | undefined
-		while ((deepestChild = selectFirstChild(state, nextSelection))) {
-			nextSelection = deepestChild
-		}
+	if ((nextSelection = selectFirstChild(state, selection))) {
 		return nextSelection
 	}
 
-	// Otherwise go up.
-	if ((nextSelection = selectParent(state, selection))) {
+	if ((nextSelection = selectNextSibling(state, selection))) {
 		return nextSelection
 	}
+
+	// Traverse parents looking for a sibling.
+	return selectNextParentSubling(state, selection)
 }
 
-const selectNextParentSibling: SelectionAction = (state, selection) => {
+const selectNextParentSubling: SelectionAction = (state, selection) => {
 	let nextSelection: BlockPosition | undefined
 
 	// Traverse parents looking for a sibling.
@@ -188,7 +185,7 @@ const selectLastChild: SelectionAction = (state, selection) => {
 }
 
 const selectPrev: SelectionAction = (state, selection) => {
-	// Prev sibling then recursively last child
+	// Prev sibling -> recursively last child
 	let prevSelection: BlockPosition | undefined
 	if ((prevSelection = selectPrevSibling(state, selection))) {
 		let lastSelection: BlockPosition | undefined
@@ -198,7 +195,7 @@ const selectPrev: SelectionAction = (state, selection) => {
 		return prevSelection
 	}
 
-	// Otherwise go up.
+	// Traverse to parent.
 	if ((prevSelection = selectParent(state, selection))) {
 		return prevSelection
 	}
@@ -212,32 +209,18 @@ type ExpandAction = (
 ) => BlockSelection | undefined
 
 const expandNext: ExpandAction = (state, selection) => {
-	const next = selectNext(state, selection.$head)
-	if (next) {
-		return new BlockSelection(selection.$anchor, next)
-	} else {
-		return
-	}
-
 	const nextSibling = selectNextSibling(state, selection.$head)
 	if (nextSibling) {
 		return new BlockSelection(selection.$anchor, nextSibling)
 	}
 
-	const nextAbove = selectNextParentSibling(state, selection.$head)
+	const nextAbove = selectNextParentSubling(state, selection.$head)
 	if (nextAbove) {
 		return new BlockSelection(selection.$anchor, nextAbove)
 	}
 }
 
 const expandPrev: ExpandAction = (state, selection) => {
-	const prev = selectPrev(state, selection.$head)
-	if (prev) {
-		return new BlockSelection(selection.$anchor, prev)
-	} else {
-		return
-	}
-
 	const prevSibling = selectPrevSibling(state, selection.$head)
 	if (prevSibling) {
 		return new BlockSelection(selection.$anchor, prevSibling)
