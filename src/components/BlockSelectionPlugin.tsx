@@ -435,7 +435,8 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 				// Select current block.
 				Escape: (state, dispatch) => {
 					if (pluginState !== null) {
-						return false
+						pluginDispatch({ newState: null })
+						return true
 					}
 					const nodeSelection = selectCurrentBlock(state, state.selection)
 					if (!nodeSelection) {
