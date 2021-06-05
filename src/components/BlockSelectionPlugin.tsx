@@ -19,7 +19,6 @@ import { keydownHandler } from "prosemirror-keymap"
 
 // TODO:
 // - expandPrev and expandNext should call selectNext when shrinking.
-// - SelectionAction uses BlockPos
 // - Allow alt+clicking to select multiple disjointed blocks.
 //
 //
@@ -38,7 +37,7 @@ function resolveNode($from: ResolvedPos) {
 	return { $from, $to, node }
 }
 
-class BlockPos {
+class BlockPosition {
 	public $from: ResolvedPos
 	public $to: ResolvedPos
 
@@ -49,19 +48,38 @@ class BlockPos {
 		this.$from = $from
 		this.$to = $to
 	}
+
+	static create(doc: ProsemirrorNode, from: number) {
+		return new this(doc.resolve(from))
+	}
 }
 
 class BlockSelection {
-	public $anchor: BlockPos
-	public $head: BlockPos
+	public $anchor: BlockPosition
+	public $head: BlockPosition
 
-	constructor($anchor: BlockPos, $head?: BlockPos) {
-		this.$anchor = $anchor
-		this.$head = $head || $anchor
+	constructor($anchor: BlockPosition, $head?: BlockPosition) {
+		$head = $head || $anchor
+
+		// When the head encapsulated the anchor.
+		if (
+			$head.$from.pos <= $anchor.$from.pos &&
+			$head.$to.pos >= $anchor.$to.pos
+		) {
+			this.$anchor = $head
+			this.$head = $head
+			// } else if (
+			// 	$head.$from.pos >= $anchor.$from.pos &&
+			// 	$head.$to.pos <= $anchor.$to.pos
+			// ) {
+		} else {
+			this.$anchor = $anchor
+			this.$head = $head
+		}
 	}
 
 	static create(doc: ProsemirrorNode, from: number) {
-		return new this(new BlockPos(doc.resolve(from)))
+		return new this(new BlockPosition(doc.resolve(from)))
 	}
 }
 
@@ -83,52 +101,52 @@ function selectCurrentBlock(
 // A set of utility functions for transforming selections around the tree.
 type SelectionAction = (
 	state: EditorState<EditorSchema>,
-	selection: BlockSelection
-) => BlockSelection | undefined
+	selection: BlockPosition
+) => BlockPosition | undefined
 
 const selectParent: SelectionAction = (state, selection) => {
-	const { $from } = selection.$head
+	const { $from } = selection
 	// We're at the top-level
 	if ($from.depth <= 0) return
 
 	const pos = $from.before()
-	return BlockSelection.create(state.doc, pos)
+	return BlockPosition.create(state.doc, pos)
 }
 
 const selectFirstChild: SelectionAction = (state, selection) => {
-	const { $from } = selection.$head
+	const { $from } = selection
 
 	// We're at a leaf.
 	// if (!node.firstChild?.isBlock) return
 	if (!$from.nodeAfter?.firstChild?.isBlock) return
 
-	return BlockSelection.create(state.doc, $from.pos + 1)
+	return BlockPosition.create(state.doc, $from.pos + 1)
 }
 
 const selectNextSibling: SelectionAction = (state, selection) => {
-	const { $to } = selection.$head
+	const { $to } = selection
 	const nextIndex = $to.indexAfter()
 
 	// We're at the last sibling.
 	if (nextIndex >= $to.parent.childCount) return
 
 	const pos = $to.posAtIndex(nextIndex)
-	return BlockSelection.create(state.doc, pos)
+	return BlockPosition.create(state.doc, pos)
 }
 
 const selectPrevSibling: SelectionAction = (state, selection) => {
-	const { $from } = selection.$head
+	const { $from } = selection
 	const prevIndex = $from.indexAfter() - 1
 
 	// We're at the first sibling.
 	if (prevIndex < 0) return
 
 	const pos = $from.posAtIndex(prevIndex)
-	return BlockSelection.create(state.doc, pos)
+	return BlockPosition.create(state.doc, pos)
 }
 
 const selectNext: SelectionAction = (state, selection) => {
-	let nextSelection: BlockSelection | undefined
+	let nextSelection: BlockPosition | undefined
 	if ((nextSelection = selectFirstChild(state, selection))) {
 		return nextSelection
 	}
@@ -142,10 +160,10 @@ const selectNext: SelectionAction = (state, selection) => {
 }
 
 const selectNextParentSubling: SelectionAction = (state, selection) => {
-	let nextSelection: BlockSelection | undefined
+	let nextSelection: BlockPosition | undefined
 
 	// Traverse parents looking for a sibling.
-	let parent: BlockSelection | undefined = selection
+	let parent: BlockPosition | undefined = selection
 	while ((parent = selectParent(state, parent))) {
 		if ((nextSelection = selectNextSibling(state, parent))) {
 			return nextSelection
@@ -153,47 +171,12 @@ const selectNextParentSubling: SelectionAction = (state, selection) => {
 	}
 }
 
-function expand({ $anchor }: BlockSelection, { $head }: BlockSelection) {
-	if (
-		$head.$from.pos <= $anchor.$from.pos &&
-		$head.$to.pos >= $anchor.$to.pos
-	) {
-		return new BlockSelection($head)
-	} else {
-		return new BlockSelection($anchor, $head)
-	}
-}
-
-const expandNext: SelectionAction = (state, selection) => {
-	const nextSibling = selectNextSibling(state, selection)
-	if (nextSibling) {
-		return expand(selection, nextSibling)
-	}
-
-	const nextAbove = selectNextParentSubling(state, selection)
-	if (nextAbove) {
-		return expand(selection, nextAbove)
-	}
-}
-
-const expandPrev: SelectionAction = (state, selection) => {
-	const prevSibling = selectPrevSibling(state, selection)
-	if (prevSibling) {
-		return expand(selection, prevSibling)
-	}
-
-	const parent = selectParent(state, selection)
-	if (parent) {
-		return expand(selection, parent)
-	}
-}
-
 const selectLastChild: SelectionAction = (state, selection) => {
 	const first = selectFirstChild(state, selection)
 	if (!first) return
 
-	let next: BlockSelection | undefined = first
-	let lastChild: BlockSelection | undefined = first
+	let next: BlockPosition | undefined = first
+	let lastChild: BlockPosition | undefined = first
 	while ((next = selectNextSibling(state, next))) {
 		lastChild = next
 	}
@@ -203,9 +186,9 @@ const selectLastChild: SelectionAction = (state, selection) => {
 
 const selectPrev: SelectionAction = (state, selection) => {
 	// Prev sibling -> recursively last child
-	let prevSelection: BlockSelection | undefined
+	let prevSelection: BlockPosition | undefined
 	if ((prevSelection = selectPrevSibling(state, selection))) {
-		let lastSelection: BlockSelection | undefined
+		let lastSelection: BlockPosition | undefined
 		while ((lastSelection = selectLastChild(state, prevSelection))) {
 			prevSelection = lastSelection
 		}
@@ -218,6 +201,35 @@ const selectPrev: SelectionAction = (state, selection) => {
 	}
 
 	return undefined
+}
+
+type ExpandAction = (
+	state: EditorState<EditorSchema>,
+	selection: BlockSelection
+) => BlockSelection | undefined
+
+const expandNext: ExpandAction = (state, selection) => {
+	const nextSibling = selectNextSibling(state, selection.$head)
+	if (nextSibling) {
+		return new BlockSelection(selection.$anchor, nextSibling)
+	}
+
+	const nextAbove = selectNextParentSubling(state, selection.$head)
+	if (nextAbove) {
+		return new BlockSelection(selection.$anchor, nextAbove)
+	}
+}
+
+const expandPrev: ExpandAction = (state, selection) => {
+	const prevSibling = selectPrevSibling(state, selection.$head)
+	if (prevSibling) {
+		return new BlockSelection(selection.$anchor, prevSibling)
+	}
+
+	const parent = selectParent(state, selection.$head)
+	if (parent) {
+		return new BlockSelection(selection.$anchor, parent)
+	}
 }
 
 // Mix the nodes from prosemirror-schema-list into the basic schema to
@@ -388,6 +400,27 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 						return false
 					}
 
+					const $head = action(state, pluginState.$head)
+					if (!$head) return capture
+
+					if (dispatch) {
+						pluginDispatch({ newState: new BlockSelection($head) })
+					}
+					return true
+				}
+			}
+
+			function expandCommmand(
+				action: ExpandAction,
+				// Capture the keyboard input when we try to arrow past the end rather than
+				// return to TextSelection.
+				capture: boolean = false
+			) {
+				return (state: EditorState, dispatch?: (tr: Transaction) => void) => {
+					if (pluginState === null) {
+						return false
+					}
+
 					const selection = action(state, pluginState)
 					if (!selection) return capture
 
@@ -447,11 +480,11 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 
 				// Select next block
 				ArrowDown: selectionCommmand(selectNext, true),
-				"Shift-ArrowDown": selectionCommmand(expandNext, true),
+				"Shift-ArrowDown": expandCommmand(expandNext, true),
 
 				// Select previous block
 				ArrowUp: selectionCommmand(selectPrev, true),
-				"Shift-ArrowUp": selectionCommmand(expandPrev, true),
+				"Shift-ArrowUp": expandCommmand(expandPrev, true),
 			})
 
 			return handler(view, event)
@@ -486,11 +519,11 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 					lastPos = $node.$to.pos
 				}
 
-				const $next = selectNext(editorState, new BlockSelection($node))
+				const $next = selectNext(editorState, $node)
 				if (!$next) {
 					break
 				}
-				$node = $next.$head
+				$node = $next
 			}
 
 			return DecorationSet.create(
