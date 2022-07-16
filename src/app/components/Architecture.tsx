@@ -5,49 +5,74 @@ import {
 	toggleMark,
 } from "prosemirror-commands"
 import { inputRules, wrappingInputRule } from "prosemirror-inputrules"
-import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
+import {
+	DOMParser,
+	DOMSerializer,
+	Fragment,
+	MarkSpec,
+	NodeSpec,
+	Schema,
+} from "prosemirror-model"
 import { Command, EditorState, Plugin } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
 import React, { useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
 
 export function Architecture() {
-	const [state, setState] = useState(initEditorState())
+	const [state, setState] = useState(
+		initEditorState({ ...SimpleEditor, html: `<p>Hello <em>World</em></p>` })
+	)
 
 	return (
 		<div>
-			<div>Hello</div>
-			<SimpleProsemirror state={state} setState={setState} />
+			<div>Simple Prosemirror Example</div>
+			<SimpleProsemirror {...SimpleEditor} state={state} setState={setState} />
 		</div>
 	)
 }
 
-function initEditorState() {
-	const schema = createSchema([DocumentSchema, QuoteBlockSchema, ItalicSchema])
-	const plugins = [...QuoteBlockStatePlugins(schema)]
-	const state = EditorState.create({ plugins, schema })
+type Editor = {
+	schemaPlugins: SchemaPlugin[]
+	statePlugins?: StatePlugin[]
+	viewPlugins?: ViewPlugin[]
+	commandPlugins?: CommandPlugin[]
+}
+
+function initEditorState(args: {
+	html?: string
+	schemaPlugins: SchemaPlugin[]
+	statePlugins?: StatePlugin[]
+}) {
+	const schema = createSchema(args.schemaPlugins)
+	const plugins = (args.statePlugins || []).flatMap((fn) => fn(schema))
+	const doc = args.html ? parseHtmlString(schema, args.html) : undefined
+	const state = EditorState.create({ plugins, schema, doc })
 	return state
 }
 
 function SimpleProsemirror(props: {
+	viewPlugins?: ViewPlugin[]
+	commandPlugins?: CommandPlugin[]
 	state: EditorState
 	setState: (nextState: EditorState) => void
 }) {
 	const { state, setState } = props
 	const nodeRef = useRef<HTMLDivElement>(null)
-	const schema = state.schema // NOTE: this doesn't ever change
+	// NOTE: this doesn't ever change
+	const schema = state.schema
 
 	const viewRef = useRef<EditorView>()
 
 	useLayoutEffect(() => {
 		const node = nodeRef.current!
 
-		const viewPlugins = []
-		const commands = [...ItalicCommands(schema), ...DocumentCommands(schema)]
+		// NOTE: assuming these don't change.
+		const commands = (props.commandPlugins || []).flatMap((fn) => fn(schema))
+		const plugins = (props.viewPlugins || []).flatMap((fn) => fn(schema))
 
 		const view = new EditorView(node, {
 			state,
-			plugins: viewPlugins,
+			plugins,
 			handleKeyDown: (view, event) => {
 				// Or register commands with a command prompt or something.,
 				return handleCommandShortcut(view, commands, event)
@@ -79,7 +104,7 @@ function SimpleProsemirror(props: {
 // Schema Helpers
 // ============================================================================
 
-interface SchemaPlugin<N extends string = never, M extends string = never> {
+interface SchemaPlugin<N extends string = any, M extends string = any> {
 	nodes?: { [K in N]?: NodeSpec }
 	marks?: { [K in M]?: MarkSpec }
 }
@@ -162,6 +187,8 @@ const ItalicSchema = createSchemaPlugin({
 // View Plugin.
 // ============================================================================
 
+type ViewPlugin = (schema: Schema) => Plugin<any>[]
+
 // ============================================================================
 // State Plugin.
 // ============================================================================
@@ -234,7 +261,34 @@ function handleCommandShortcut(
 // Node View.
 // ============================================================================
 
-// TODO: controlled app state
+// ============================================================================
+// Parsing.
+// ============================================================================
+
+function parseHtmlString(schema: Schema, htmlString: string) {
+	const doc = document.implementation.createHTMLDocument("New Document")
+	const div = doc.createElement("div")
+	div.innerHTML = htmlString
+	return DOMParser.fromSchema(schema).parse(div)
+}
+
+function formatHtmlString(schema: Schema, content: Fragment) {
+	const doc = document.implementation.createHTMLDocument("New Document")
+	const div = doc.createElement("div")
+	const fragment = DOMSerializer.fromSchema(schema).serializeFragment(content)
+	div.appendChild(fragment)
+	return div.innerHTML
+}
+
+const SimpleEditor: Editor = {
+	schemaPlugins: [DocumentSchema, QuoteBlockSchema, ItalicSchema],
+	statePlugins: [QuoteBlockStatePlugins],
+	commandPlugins: [DocumentCommands, ItalicCommands],
+	viewPlugins: [],
+}
+
+// TODO: change editor state from outside.
+// TODO: double-dispatch should work without re-render in between.
 // TODO: nodeView
 // TODO: view vs state plugin
 // TODO: internal state vs external state
