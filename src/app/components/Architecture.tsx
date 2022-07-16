@@ -35,13 +35,11 @@ function SimpleProsemirror() {
 		const statePlugins = [...QuoteBlockStatePlugins(schema)]
 		const viewPlugins = []
 		const commands = [...ItalicCommands(schema), ...DocumentCommands(schema)]
-		// const nodeViews = createNodeViews(editorPlugins)
 
 		const state = EditorState.create({ plugins: statePlugins, schema })
 		const view = new EditorView(node, {
 			state,
 			plugins: viewPlugins,
-			// nodeViews,
 			handleKeyDown: (view, event) => {
 				return handleCommandShortcut(view, commands, event)
 			},
@@ -202,13 +200,10 @@ function handleCommandShortcut(
 	return false
 }
 
-// TODO
-
 // ============================================================================
 // Node View.
 // ============================================================================
 
-// TODO
-
 // TODO: nodeView
-// TODO: state plugin
+// TODO: view vs state plugin
+// TODO: internal state vs external state
