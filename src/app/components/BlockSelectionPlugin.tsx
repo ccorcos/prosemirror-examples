@@ -1,21 +1,21 @@
 import React, { useLayoutEffect, useRef } from "react"
 
-import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
-import { Schema, NodeType, ResolvedPos } from "prosemirror-model"
+import { exampleSetup } from "prosemirror-example-setup"
+import { Node as ProsemirrorNode, ResolvedPos, Schema } from "prosemirror-model"
 import { schema as basicSchema } from "prosemirror-schema-basic"
 import { addListNodes } from "prosemirror-schema-list"
-import { exampleSetup } from "prosemirror-example-setup"
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
 
+import { css } from "glamor"
+import { keydownHandler } from "prosemirror-keymap"
 import {
 	EditorState,
+	Plugin,
+	PluginKey,
 	Selection,
 	TextSelection,
 	Transaction,
-	Plugin,
-	PluginKey,
 } from "prosemirror-state"
-import { css } from "glamor"
-import { keydownHandler } from "prosemirror-keymap"
 
 // TODO:
 // - how can we use this same logic as a 'custom' Selection on state.selection?
@@ -25,11 +25,6 @@ import { keydownHandler } from "prosemirror-keymap"
 //
 // LATER:
 // - expandPrev and expandNext should call selectNext when shrinking.
-
-// Annoying hack so that we can use this type.
-type ProsemirrorNode<S extends Schema = Schema> = ReturnType<
-	NodeType<S>["create"]
->
 
 function resolveNode($from: ResolvedPos) {
 	const node = $from.nodeAfter!
@@ -84,10 +79,7 @@ class BlockSelection {
 }
 
 // Similar to prosemirror-commands `selectParentNode`.
-function selectCurrentBlock(
-	state: EditorState<EditorSchema>,
-	selection: Selection
-) {
+function selectCurrentBlock(state: EditorState, selection: Selection) {
 	let { $from, to } = selection
 
 	let same = $from.sharedDepth(to)
@@ -100,7 +92,7 @@ function selectCurrentBlock(
 // TODO: SelectionAction should use BlockPos, not BlockSelection.
 // A set of utility functions for transforming selections around the tree.
 type SelectionAction = (
-	state: EditorState<EditorSchema>,
+	state: EditorState,
 	selection: BlockPosition
 ) => BlockPosition | undefined
 
@@ -204,7 +196,7 @@ const selectPrev: SelectionAction = (state, selection) => {
 }
 
 type ExpandAction = (
-	state: EditorState<EditorSchema>,
+	state: EditorState,
 	selection: BlockSelection
 ) => BlockSelection | undefined
 
@@ -385,9 +377,9 @@ type BlockSelectionPluginState = null | BlockSelection
 
 type BlockSelectionPluginAction = { newState: BlockSelectionPluginState }
 
-const pluginKey = new PluginKey("block-selection")
+const pluginKey = new PluginKey<BlockSelectionPluginState>("block-selection")
 
-const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
+const selectionPlugin = new Plugin<BlockSelectionPluginState>({
 	key: pluginKey,
 	state: {
 		init() {
@@ -405,7 +397,7 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 
 	props: {
 		handleKeyDown(view, event) {
-			const pluginState = this.getState(view.state)
+			const pluginState = pluginKey.getState(view.state)
 
 			const pluginDispatch = (action: BlockSelectionPluginAction) => {
 				view.dispatch(view.state.tr.setMeta(pluginKey, action))
@@ -418,7 +410,7 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 				capture: boolean = false
 			) {
 				return (state: EditorState, dispatch?: (tr: Transaction) => void) => {
-					if (pluginState === null) {
+					if (!pluginState) {
 						return false
 					}
 
@@ -439,7 +431,7 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 				capture: boolean = false
 			) {
 				return (state: EditorState, dispatch?: (tr: Transaction) => void) => {
-					if (pluginState === null) {
+					if (!pluginState) {
 						return false
 					}
 
@@ -472,7 +464,7 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 				},
 				// Edit current block.
 				Enter: (state, dispatch) => {
-					if (pluginState === null) {
+					if (!pluginState) {
 						return false
 					}
 					if (dispatch) {
@@ -516,8 +508,8 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 		handleDOMEvents: {
 			mousedown(view, event) {
 				// Handle shift-click to expand selection.
-				const pluginState: BlockSelectionPluginState = this.getState(view.state)
-				if (pluginState === null) {
+				const pluginState = pluginKey.getState(view.state)
+				if (!pluginState) {
 					return false
 				}
 
@@ -568,9 +560,9 @@ const selectionPlugin = new Plugin<BlockSelectionPluginState, EditorSchema>({
 			},
 		},
 		decorations(editorState) {
-			const state: BlockSelectionPluginState = this.getState(editorState)
+			const state = pluginKey.getState(editorState)
 
-			if (state === null) {
+			if (!state) {
 				return null
 			}
 			console.log(

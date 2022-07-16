@@ -8,13 +8,13 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 
 */
 
-import React, { useLayoutEffect, useRef } from "react"
+import { toggleMark } from "prosemirror-commands"
+import { history, redo, undo } from "prosemirror-history"
+import { keymap } from "prosemirror-keymap"
 import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
 import { EditorState, TextSelection } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import { history, undo, redo } from "prosemirror-history"
-import { keymap } from "prosemirror-keymap"
-import { toggleMark } from "prosemirror-commands"
+import React, { useLayoutEffect, useRef } from "react"
 
 const doc: NodeSpec = {
 	content: "block+",
@@ -104,7 +104,7 @@ export function Focus() {
 			],
 		})
 
-		const view = new EditorView<EditorSchema>(node, {
+		const view = new EditorView(node, {
 			state,
 			attributes: {
 				style: [

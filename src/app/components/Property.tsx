@@ -12,14 +12,16 @@ ProseMirror Asks:
 
 */
 
-import React, {
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
-import { MarkSpec, NodeSpec, NodeType, Schema } from "prosemirror-model"
+import { css } from "glamor"
+import { toggleMark } from "prosemirror-commands"
+import { history, redo, undo } from "prosemirror-history"
+import { keymap } from "prosemirror-keymap"
+import {
+	MarkSpec,
+	Node as ProsemirrorNode,
+	NodeSpec,
+	Schema,
+} from "prosemirror-model"
 import {
 	EditorState,
 	NodeSelection,
@@ -28,17 +30,20 @@ import {
 	TextSelection,
 	Transaction,
 } from "prosemirror-state"
+import { StepMap } from "prosemirror-transform"
 import {
 	Decoration,
 	DecorationSet,
 	EditorView,
 	NodeView,
 } from "prosemirror-view"
-import { keymap } from "prosemirror-keymap"
-import { StepMap } from "prosemirror-transform"
-import { history, undo, redo } from "prosemirror-history"
-import { toggleMark } from "prosemirror-commands"
-import { css } from "glamor"
+import React, {
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react"
 import ReactDOM from "react-dom"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
@@ -48,9 +53,6 @@ const nbsp = "\xa0"
 // ==================================================================
 // Autocomplete Plugin
 // ==================================================================
-
-// https://github.com/DefinitelyTyped/DefinitelyTyped/pull/49646
-type ProsemirrorNode<S extends Schema> = ReturnType<NodeType<S>["create"]>
 
 type AutocompleteTokenPluginState<T> =
 	| { active: false }
@@ -80,11 +82,11 @@ type Extension<N extends string> = {
 	nodes: { [key in N]: NodeSpec }
 	nodeViews: {
 		[key in N]: (
-			node: ProsemirrorNode<Schema>,
-			view: EditorView<Schema>,
-			getPos: (() => number) | boolean,
-			decorations: Decoration[]
-		) => NodeView<Schema>
+			node: ProsemirrorNode,
+			view: EditorView,
+			getPos: () => number,
+			decorations: readonly Decoration[]
+		) => NodeView
 	}
 }
 
@@ -97,7 +99,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	) => void
 }): Extension<N> {
 	const { nodeName, triggerCharacter, renderPopup } = args
-	const pluginKey = new PluginKey(nodeName)
+	const pluginKey = new PluginKey<AutocompleteTokenPluginState<T>>(nodeName)
 	const dataAttr = `data-${nodeName}`
 
 	const autocompleteTokenNode: NodeSpec = {
@@ -115,25 +117,26 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						var value = dom.getAttribute(dataAttr)
 						return { [nodeName]: value }
 					}
+					return false
 				},
 			},
 		],
 	}
 
 	// This is an inline element with content.
-	class TokenNodeView implements NodeView<Schema> {
+	class TokenNodeView implements NodeView {
 		dom: HTMLElement
 		getPos: () => number
 
-		node: ProsemirrorNode<Schema>
-		outerView: EditorView<Schema>
-		innerView: EditorView<Schema>
+		node: ProsemirrorNode
+		outerView: EditorView
+		innerView: EditorView
 
 		constructor(
-			node: ProsemirrorNode<Schema>,
-			view: EditorView<Schema>,
+			node: ProsemirrorNode,
+			view: EditorView,
 			getPos: (() => number) | boolean,
-			decorations: Decoration[]
+			decorations: readonly Decoration[]
 		) {
 			this.node = node
 			this.outerView = view
@@ -270,7 +273,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			}
 		}
 
-		// TODO: ProsemirrorNode<Schema> doesn't work here.
+		// TODO: ProsemirrorNode doesn't work here.
 		update(node) {
 			if (!node.sameMarkup(this.node)) {
 				return false
@@ -393,19 +396,15 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 	}
 
-	const autocompleteTokenPlugin = new Plugin<
-		AutocompleteTokenPluginState<T>,
-		Schema<any>
-	>({
+	const autocompleteTokenPlugin = new Plugin<AutocompleteTokenPluginState<T>>({
 		key: pluginKey,
 		state: {
 			init() {
 				return { active: false }
 			},
 			apply(tr, state) {
-				const action: AutocompleteTokenPluginAction | undefined = tr.getMeta(
-					pluginKey
-				)
+				const action: AutocompleteTokenPluginAction | undefined =
+					tr.getMeta(pluginKey)
 				if (action) {
 					if (action.type === "open") {
 						const { pos, rect } = action
@@ -448,7 +447,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		},
 		props: {
 			handleKeyDown(view, e) {
-				const state = this.getState(view.state)
+				const state = pluginKey.getState(view.state)
 
 				const dispatch = (action: AutocompleteTokenPluginAction) => {
 					view.dispatch(view.state.tr.setMeta(pluginKey, action))
@@ -490,12 +489,10 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				return false
 			},
 			decorations(editorState) {
-				const state: AutocompleteTokenPluginState<T> = this.getState(
-					editorState
-				)
-				if (!state.active) {
-					return null
-				}
+				const state = pluginKey.getState(editorState)
+				if (!state) return null
+				if (!state.active) return null
+
 				const { range } = state
 				return DecorationSet.create(editorState.doc, [
 					Decoration.inline(range.from, range.to, {
@@ -508,9 +505,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		view() {
 			return {
 				update(view) {
-					var state: AutocompleteTokenPluginState<T> = pluginKey.getState(
-						view.state
-					)
+					var state = pluginKey.getState(view.state)!
 
 					const onCreate = (
 						value: string,
@@ -555,7 +550,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		plugins: [
 			autocompleteTokenPlugin,
 			// Delete token when it is selected (and allowed to bubble up from stopEvent).
-			keymap<Schema>({
+			keymap({
 				Backspace: (state, dispatch) => {
 					const { node } = state.selection as NodeSelection
 					if (node) {
@@ -755,7 +750,7 @@ export function Editor() {
 			],
 		})
 
-		const view = new EditorView<EditorSchema>(node, {
+		const view = new EditorView(node, {
 			state,
 			attributes: {
 				style: [

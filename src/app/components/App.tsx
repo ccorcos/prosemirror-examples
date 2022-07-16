@@ -1,12 +1,12 @@
+import "prosemirror-view/style/prosemirror.css"
 import * as React from "react"
-import { HashRouter as Router, Switch, Route, Link } from "react-router-dom"
+import { HashRouter as Router, Link, Route, Switch } from "react-router-dom"
+import "../index.css"
 import { Editor as Autocomplete } from "./Autocomplete"
+import { BlockSelection } from "./BlockSelection"
+import { BlockSelectionPlugin } from "./BlockSelectionPlugin"
 import { Focus } from "./Focus"
 import { Editor as Property } from "./Property"
-import { BlockSelection } from "./BlockSelection"
-import "prosemirror-view/style/prosemirror.css"
-import "../index.css"
-import { BlockSelectionPlugin } from "./BlockSelectionPlugin"
 
 export function App() {
 	return (

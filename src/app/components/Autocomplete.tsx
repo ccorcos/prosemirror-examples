@@ -9,7 +9,17 @@ https://discuss.prosemirror.net/t/how-to-get-a-selection-rect/3430
 */
 
 import { css } from "glamor"
-import ReactDOM from "react-dom"
+import { toggleMark } from "prosemirror-commands"
+import { history, redo, undo } from "prosemirror-history"
+import { keymap } from "prosemirror-keymap"
+import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
+import {
+	EditorState,
+	NodeSelection,
+	Plugin,
+	PluginKey,
+} from "prosemirror-state"
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
 import React, {
 	useEffect,
 	useLayoutEffect,
@@ -17,17 +27,7 @@ import React, {
 	useRef,
 	useState,
 } from "react"
-import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
-import {
-	Plugin,
-	PluginKey,
-	EditorState,
-	NodeSelection,
-} from "prosemirror-state"
-import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
-import { history, undo, redo } from "prosemirror-history"
-import { keymap } from "prosemirror-keymap"
-import { toggleMark } from "prosemirror-commands"
+import ReactDOM from "react-dom"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
 // ==================================================================
@@ -90,24 +90,21 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 						var value = dom.getAttribute(dataAttr)
 						return { [nodeName]: value }
 					}
+					return false
 				},
 			},
 		],
 	}
 
-	const autocompleteTokenPlugin = new Plugin<
-		AutocompleteTokenPluginState<T>,
-		Schema<any>
-	>({
+	const autocompleteTokenPlugin = new Plugin<AutocompleteTokenPluginState<T>>({
 		key: pluginKey,
 		state: {
 			init() {
 				return { active: false }
 			},
 			apply(tr, state) {
-				const action: AutocompleteTokenPluginAction | undefined = tr.getMeta(
-					pluginKey
-				)
+				const action: AutocompleteTokenPluginAction | undefined =
+					tr.getMeta(pluginKey)
 				if (action) {
 					if (action.type === "open") {
 						const { pos, rect } = action
@@ -150,7 +147,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		},
 		props: {
 			handleKeyDown(view, e) {
-				const state = this.getState(view.state)
+				const state = pluginKey.getState(view.state)
 
 				const dispatch = (action: AutocompleteTokenPluginAction) => {
 					view.dispatch(view.state.tr.setMeta(pluginKey, action))
@@ -192,9 +189,8 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 				return false
 			},
 			decorations(editorState) {
-				const state: AutocompleteTokenPluginState<T> = this.getState(
-					editorState
-				)
+				const state: AutocompleteTokenPluginState<T> =
+					pluginKey.getState(editorState)
 				if (!state.active) {
 					return null
 				}
@@ -241,7 +237,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		plugins: [
 			autocompleteTokenPlugin,
 			// Delete token when it is selected.
-			keymap<Schema>({
+			keymap({
 				Backspace: (state, dispatch) => {
 					const { node } = state.selection as NodeSelection
 					if (node) {
@@ -449,7 +445,7 @@ export function Editor() {
 			],
 		})
 
-		const view = new EditorView<EditorSchema>(node, {
+		const view = new EditorView(node, {
 			state,
 			attributes: {
 				style: [

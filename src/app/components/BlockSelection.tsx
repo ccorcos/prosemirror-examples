@@ -1,11 +1,9 @@
-import React, { useLayoutEffect, useRef } from "react"
-
-import { EditorView } from "prosemirror-view"
-import { Schema, NodeType } from "prosemirror-model"
+import { css } from "glamor"
+import { exampleSetup } from "prosemirror-example-setup"
+import { keymap } from "prosemirror-keymap"
+import { Node as ProsemirrorNode, Schema } from "prosemirror-model"
 import { schema as basicSchema } from "prosemirror-schema-basic"
 import { addListNodes } from "prosemirror-schema-list"
-import { exampleSetup } from "prosemirror-example-setup"
-
 import {
 	EditorState,
 	NodeSelection,
@@ -13,13 +11,8 @@ import {
 	TextSelection,
 	Transaction,
 } from "prosemirror-state"
-import { css } from "glamor"
-import { keymap } from "prosemirror-keymap"
-
-// Annoying hack so that we can use this type.
-type ProsemirrorNode<S extends Schema = Schema> = ReturnType<
-	NodeType<S>["create"]
->
+import { EditorView } from "prosemirror-view"
+import React, { useLayoutEffect, useRef } from "react"
 
 // An extension of NodeSelection so that escape/enter toggles between block selection mode.
 // Meanwhile, basic node selections can happen by arrowing past an image or an inline token.
@@ -31,15 +24,13 @@ function createBlockSelection(doc: ProsemirrorNode, pos: number) {
 	return selection
 }
 
-function isNodeSelection(
-	selection: Selection<EditorSchema>
-): NodeSelection<EditorSchema> | undefined {
+function isNodeSelection(selection: Selection): NodeSelection | undefined {
 	if (selection instanceof NodeSelection) {
 		return selection
 	}
 }
 
-function isBlockSelection(selection: Selection<EditorSchema>) {
+function isBlockSelection(selection: Selection) {
 	const nodeSelection = isNodeSelection(selection) as BlockSelection | undefined
 	if (nodeSelection && nodeSelection.block) {
 		return nodeSelection
@@ -47,10 +38,7 @@ function isBlockSelection(selection: Selection<EditorSchema>) {
 }
 
 // Similar to prosemirror-commands `selectParentNode`.
-function selectCurrentBlock(
-	state: EditorState<EditorSchema>,
-	selection: Selection
-) {
+function selectCurrentBlock(state: EditorState, selection: Selection) {
 	let { $from, to } = selection
 
 	let same = $from.sharedDepth(to)
@@ -62,7 +50,7 @@ function selectCurrentBlock(
 
 // A set of utility functions for transforming selections around the tree.
 type SelectionAction = (
-	state: EditorState<EditorSchema>,
+	state: EditorState,
 	selection: BlockSelection
 ) => BlockSelection | undefined
 
@@ -164,10 +152,7 @@ function selectionCommmand(
 	// return to TextSelection.
 	capture: boolean = false
 ) {
-	return (
-		state: EditorState<EditorSchema>,
-		dispatch?: (tr: Transaction) => void
-	) => {
+	return (state: EditorState, dispatch?: (tr: Transaction) => void) => {
 		const nodeSelection = isBlockSelection(state.selection)
 		if (!nodeSelection) return false
 
