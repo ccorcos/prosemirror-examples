@@ -23,9 +23,20 @@ export function Architecture() {
 		initEditorState({ ...SimpleEditor, html: `<p>Hello <em>World</em></p>` })
 	)
 
+	// Change editor state from outside Prosemirror.
+	const removeMarks = () => {
+		const tr = state.tr
+		tr.removeMark(0, state.doc.content.size)
+		const nextState = state.apply(tr)
+		setState(nextState)
+	}
+
 	return (
 		<div>
 			<div>Simple Prosemirror Example</div>
+			<div>
+				<button onClick={removeMarks}>Remove Marks</button>
+			</div>
 			<SimpleProsemirror {...SimpleEditor} state={state} setState={setState} />
 		</div>
 	)
@@ -87,12 +98,15 @@ function SimpleProsemirror(props: {
 			},
 		})
 		viewRef.current = view
+		// For debugging...
+		;(window as any).view = view
 	}, [])
 
 	useLayoutEffect(() => {
 		const view = viewRef.current
 		if (!view) return
 		if (view.state === state) return
+
 		// This will update the view if we edit the state outside of Prosemirror.
 		view.updateState(state)
 	}, [state])
@@ -287,7 +301,6 @@ const SimpleEditor: Editor = {
 	viewPlugins: [],
 }
 
-// TODO: change editor state from outside.
 // TODO: double-dispatch should work without re-render in between.
 // TODO: nodeView
 // TODO: view vs state plugin
