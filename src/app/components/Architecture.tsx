@@ -13,7 +13,7 @@ import {
 	NodeSpec,
 	Schema,
 } from "prosemirror-model"
-import { Command, EditorState, Plugin } from "prosemirror-state"
+import { EditorState, Plugin, Transaction } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
 import React, { useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
@@ -221,7 +221,15 @@ const QuoteBlockStatePlugins: StatePlugin = (schema) => [
 // Command Plugin.
 // ============================================================================
 
-type EditorCommand = { name: string; shortcut?: string; command: Command }
+type EditorCommand = {
+	name: string
+	shortcut?: string
+	command: (
+		state: EditorState,
+		dispatch: ((tr: Transaction) => void) | undefined,
+		view: EditorView
+	) => boolean
+}
 
 type CommandPlugin = (schema: Schema) => EditorCommand[]
 
@@ -254,6 +262,33 @@ const DocumentCommands: CommandPlugin = (schema) => [
 	},
 ]
 
+// NOTE: this thing is hard to test currently -- you need to mangle some things.
+// 1. You need to make sure React is batching updates so onKeyDown needs to be
+//    registered through React.
+// 2. You can see that it doesn't work if we delete view.updateState from the
+//    dispatchTransaction callback.
+const DoubleDispatchCommands: CommandPlugin = (schema) => [
+	{
+		name: "Double Dispatch",
+		shortcut: "Meta-d",
+		command: (state, dispatch, view) => {
+			console.log("DISPATCH1")
+			DELETE_FIRST: {
+				const tr = view.state.tr
+				tr.replace(1, 2)
+				if (dispatch) dispatch(tr)
+			}
+			console.log("DISPATCH2")
+			DELETE_LAST: {
+				const tr = view.state.tr
+				tr.replace(tr.doc.content.size - 2, tr.doc.content.size - 1)
+				if (dispatch) dispatch(tr)
+			}
+			return true
+		},
+	},
+]
+
 function handleCommandShortcut(
 	view: EditorView,
 	commands: EditorCommand[],
@@ -263,7 +298,8 @@ function handleCommandShortcut(
 		if (!command.shortcut) continue
 		if (
 			keydownHandler({
-				[command.shortcut]: () => command.command(view.state, view.dispatch),
+				[command.shortcut]: () =>
+					command.command(view.state, view.dispatch, view),
 			})(event)
 		)
 			return true
