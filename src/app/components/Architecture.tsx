@@ -8,62 +8,88 @@ import { inputRules, wrappingInputRule } from "prosemirror-inputrules"
 import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
 import { Command, EditorState, Plugin } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import React, { useLayoutEffect, useRef } from "react"
+import React, { useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
 
 export function Architecture() {
+	const [state, setState] = useState(initEditorState())
+
 	return (
 		<div>
 			<div>Hello</div>
-			<SimpleProsemirror />
+			<SimpleProsemirror state={state} setState={setState} />
 		</div>
 	)
 }
 
-function SimpleProsemirror() {
-	const ref = useRef<HTMLDivElement>(null)
+function initEditorState() {
+	const schema = createSchema([DocumentSchema, QuoteBlockSchema, ItalicSchema])
+	const plugins = [...QuoteBlockStatePlugins(schema)]
+	const state = EditorState.create({ plugins, schema })
+	return state
+}
+
+function SimpleProsemirror(props: {
+	state: EditorState
+	setState: (nextState: EditorState) => void
+}) {
+	const { state, setState } = props
+	const nodeRef = useRef<HTMLDivElement>(null)
+	const schema = state.schema // NOTE: this doesn't ever change
+
+	const viewRef = useRef<EditorView>()
 
 	useLayoutEffect(() => {
-		const node = ref.current!
+		const node = nodeRef.current!
 
-		const schema = createSchema([
-			DocumentSchema,
-			QuoteBlockSchema,
-			ItalicSchema,
-		])
-
-		const statePlugins = [...QuoteBlockStatePlugins(schema)]
 		const viewPlugins = []
 		const commands = [...ItalicCommands(schema), ...DocumentCommands(schema)]
 
-		const state = EditorState.create({ plugins: statePlugins, schema })
 		const view = new EditorView(node, {
 			state,
 			plugins: viewPlugins,
 			handleKeyDown: (view, event) => {
+				// Or register commands with a command prompt or something.,
 				return handleCommandShortcut(view, commands, event)
 			},
+			dispatchTransaction(tr) {
+				const nextState = view.state.apply(tr)
+				// Don't want for React to re-render to update the view state. Otherwise
+				// if there are two transactions in a row, before the next render, then
+				// the second transaction will not have the result of the first transaction.
+				view.updateState(nextState)
+				setState(nextState)
+			},
 		})
+		viewRef.current = view
 	}, [])
 
-	return <div ref={ref} style={{ border: "1px solid black" }}></div>
+	useLayoutEffect(() => {
+		const view = viewRef.current
+		if (!view) return
+		if (view.state === state) return
+		// This will update the view if we edit the state outside of Prosemirror.
+		view.updateState(state)
+	}, [state])
+
+	return <div ref={nodeRef} style={{ border: "1px solid black" }}></div>
 }
 
 // ============================================================================
 // Schema Helpers
 // ============================================================================
 
-interface SchemaSpecPlugin<N extends string = never, M extends string = never> {
+interface SchemaPlugin<N extends string = never, M extends string = never> {
 	nodes?: { [K in N]?: NodeSpec }
 	marks?: { [K in M]?: MarkSpec }
 }
 
 function createSchemaPlugin<N extends string = never, M extends string = never>(
-	plugin: SchemaSpecPlugin<N, M>
+	plugin: SchemaPlugin<N, M>
 ) {
 	return plugin
 }
-function createSchema<T extends SchemaSpecPlugin<any, any>>(plugins: T[]) {
+function createSchema<T extends SchemaPlugin<any, any>>(plugins: T[]) {
 	const nodes = plugins.reduce(
 		(acc, plugin) => Object.assign(acc, plugin.nodes),
 		{} as Record<string, NodeSpec>
@@ -140,9 +166,11 @@ const ItalicSchema = createSchemaPlugin({
 // State Plugin.
 // ============================================================================
 
+type StatePlugin = (schema: Schema) => Plugin<any>[]
+
 // NOTE: schema is not well-typed here. It's a bit annoying, but it takes a lot
 // of type mangling to make it work...
-const QuoteBlockStatePlugins = (schema: Schema): Plugin<any>[] => [
+const QuoteBlockStatePlugins: StatePlugin = (schema) => [
 	inputRules({
 		rules: [wrappingInputRule(/^\s*>\s$/, schema.nodes.blockquote)],
 	}),
@@ -154,7 +182,9 @@ const QuoteBlockStatePlugins = (schema: Schema): Plugin<any>[] => [
 
 type EditorCommand = { name: string; shortcut?: string; command: Command }
 
-const ItalicCommands = (schema: Schema): EditorCommand[] => [
+type CommandPlugin = (schema: Schema) => EditorCommand[]
+
+const ItalicCommands: CommandPlugin = (schema) => [
 	{
 		name: "Italic",
 		shortcut: "Meta-i",
@@ -162,7 +192,7 @@ const ItalicCommands = (schema: Schema): EditorCommand[] => [
 	},
 ]
 
-const DocumentCommands = (schema: Schema) => [
+const DocumentCommands: CommandPlugin = (schema) => [
 	{
 		name: "Split block",
 		category: "structure",
@@ -204,6 +234,7 @@ function handleCommandShortcut(
 // Node View.
 // ============================================================================
 
+// TODO: controlled app state
 // TODO: nodeView
 // TODO: view vs state plugin
 // TODO: internal state vs external state
