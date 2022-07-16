@@ -528,12 +528,15 @@ function PopupMenuOpen(props: {
 	)
 }
 
-// TODO: controlled focus within plugins.
-//       - does it persist across refresh?
-// TODO: nodeView.
-//       - how to do this without plumbing react context?
-// TODO: view vs state plugin
-// TODO: internal state vs external state
+// TODO:
+// - controlled focus.
+//   - can we persist focus across refresh?
+// - nodeView
+// 	 - how can we plumb react context through?
+// - syncing internal/external state
+//   - how to "pass external props" to a node view
+//   - how to "pass external props" to a state plugin
+//   - how to "pass external props" to a view plugin
 
 // ============================================================================
 // SimpleEditor.
