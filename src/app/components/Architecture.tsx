@@ -15,13 +15,15 @@ import {
 } from "prosemirror-model"
 import { EditorState, Plugin, PluginKey, Transaction } from "prosemirror-state"
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
-import React, { useLayoutEffect, useRef, useState } from "react"
+import React, { CSSProperties, useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
 
 export function Architecture() {
 	const [state, setState] = useState(
 		initEditorState({ ...SimpleEditor, html: `<p>Hello <em>World</em></p>` })
 	)
+
+	const [focused, setFocused] = useState(false)
 
 	// Change editor state from outside Prosemirror.
 	const removeMarks = () => {
@@ -31,13 +33,32 @@ export function Architecture() {
 		setState(nextState)
 	}
 
+	const docFocused = focusKey.getState(state) === null
+
 	return (
 		<div>
 			<div>Simple Prosemirror Example</div>
 			<div>
 				<button onClick={removeMarks}>Remove Marks</button>
 			</div>
-			<SimpleProsemirror {...SimpleEditor} state={state} setState={setState} />
+			<ProsemirrorEditor
+				{...SimpleEditor}
+				state={state}
+				setState={setState}
+				style={{
+					outline: focused && docFocused ? "1px solid green" : undefined,
+					outlineOffset: -1,
+				}}
+				onFocus={() => setFocused(true)}
+				onBlur={() => setFocused(false)}
+			>
+				{(state, view) => (
+					<>
+						<PopupMenu state={state} view={view} />
+						<div>Focus: {focusKey.getState(state) || "null"}</div>
+					</>
+				)}
+			</ProsemirrorEditor>
 		</div>
 	)
 }
@@ -61,19 +82,25 @@ function initEditorState(args: {
 	return state
 }
 
-function SimpleProsemirror(props: {
+function ProsemirrorEditor(props: {
 	viewPlugins?: ViewPlugin[]
 	commandPlugins?: CommandPlugin[]
 	state: EditorState
+	style?: CSSProperties
 	setState: (nextState: EditorState) => void
+	// NOTE: This abstraction might change back to a view plugin, because we need to figure out
+	// a way to plumb React context into node views anyways...
+	children?: (state: EditorState, view: EditorView) => React.ReactNode
+
+	onFocus?: () => void
+	onBlur?: () => void
 }) {
-	const { state, setState } = props
+	const { state, setState, style } = props
 	const nodeRef = useRef<HTMLDivElement>(null)
 	// NOTE: this doesn't ever change
 	const schema = state.schema
 
-	const viewRef = useRef<EditorView>()
-
+	const [view, setView] = useState<EditorView>()
 	useLayoutEffect(() => {
 		const node = nodeRef.current!
 
@@ -97,21 +124,49 @@ function SimpleProsemirror(props: {
 				setState(nextState)
 			},
 		})
-		viewRef.current = view
+		setView(view)
 		// For debugging...
 		;(window as any).view = view
+
+		return () => {
+			view.destroy()
+		}
 	}, [])
 
 	useLayoutEffect(() => {
-		const view = viewRef.current
 		if (!view) return
 		if (view.state === state) return
 
 		// This will update the view if we edit the state outside of Prosemirror.
 		view.updateState(state)
-	}, [state])
+	}, [view, state])
 
-	return <div ref={nodeRef} style={{ border: "1px solid black" }}></div>
+	useLayoutEffect(() => {
+		if (!view) return
+		if (!props.onFocus) return
+		const onFocus = props.onFocus
+		view.dom.addEventListener("focus", onFocus)
+		return () => {
+			view.dom.removeEventListener("focus", onFocus)
+		}
+	}, [view, props.onFocus])
+
+	useLayoutEffect(() => {
+		if (!view) return
+		if (!props.onBlur) return
+		const onBlur = props.onBlur
+		view.dom.addEventListener("blur", onBlur)
+		return () => {
+			view.dom.removeEventListener("blur", onBlur)
+		}
+	}, [view, props.onBlur])
+
+	return (
+		<>
+			{props.children && view && props.children(state, view)}
+			<div ref={nodeRef} style={{ border: "1px solid #ddd", ...style }}></div>
+		</>
+	)
 }
 
 // ============================================================================
@@ -331,12 +386,39 @@ function formatHtmlString(schema: Schema, content: Fragment) {
 }
 
 // ============================================================================
+// FocusState.
+// ============================================================================
+
+type FocusPluginState = string | null
+
+const focusKey = new PluginKey<FocusPluginState>("focus")
+
+const FocusStatePlugins: StatePlugin = (schema) => [
+	new Plugin<FocusPluginState>({
+		key: focusKey,
+		state: {
+			init: () => null,
+			apply: (tr, state) => {
+				const action = tr.getMeta(focusKey)
+				if (action !== undefined) return action
+				return state
+			},
+		},
+	}),
+]
+
+function setFocus(tr: Transaction, focusState: FocusPluginState) {
+	tr.setMeta(focusKey, focusState)
+}
+
+// ============================================================================
 // PopupMenu.
 // ============================================================================
 
-type PopupPluginState = { open: false } | { open: true; index: number }
+type PopupPluginOpenState = { open: true; index: number }
+type PopupPluginState = { open: false } | PopupPluginOpenState
 
-const popupMenuKey = new PluginKey<PopupPluginState>()
+const popupMenuKey = new PluginKey<PopupPluginState>("popupMenu")
 
 const PopupMenuStatePlugins: StatePlugin = (schema) => [
 	new Plugin<PopupPluginState>({
@@ -346,9 +428,17 @@ const PopupMenuStatePlugins: StatePlugin = (schema) => [
 			apply: (tr, state) => {
 				const action = tr.getMeta(popupMenuKey)
 				if (action) return action
-				if (tr.selection.empty) return { open: false }
 				return state
 			},
+		},
+		appendTransaction(trs, oldState, newState) {
+			if (newState.selection.empty && popupMenuKey.getState(newState)!.open) {
+				const tr = newState.tr
+				tr.setMeta(popupMenuKey, { open: false })
+				setFocus(tr, null)
+				return tr
+			}
+			return null
 		},
 	}),
 ]
@@ -360,11 +450,15 @@ const PopupMenuCommands: CommandPlugin = (schema) => [
 		command: (state, dispatch, view) => {
 			const tr = state.tr
 
+			if (state.selection.empty) return true
+
 			const popupState = popupMenuKey.getState(state)!
 			if (popupState.open) {
 				tr.setMeta(popupMenuKey, { open: false })
+				setFocus(tr, null)
 			} else {
 				tr.setMeta(popupMenuKey, { open: true, index: 0 })
+				setFocus(tr, "popup")
 			}
 
 			if (dispatch) dispatch(tr)
@@ -392,9 +486,52 @@ const PopupMenuViewPlugins: ViewPlugin = (schema) => [
 	}),
 ]
 
-// TODO: popup menu.
+function PopupMenu(props: { state: EditorState; view: EditorView }) {
+	const popupState = popupMenuKey.getState(props.state)!
+	if (!popupState.open) return null
+
+	return <PopupMenuOpen {...props} popupState={popupState} />
+}
+
+function PopupMenuOpen(props: {
+	popupState: PopupPluginOpenState
+	state: EditorState
+	view: EditorView
+}) {
+	const { view, state, popupState } = props
+	const [rect, setRect] = useState<{ left: number; bottom: number }>()
+
+	useLayoutEffect(() => {
+		setRect(view.coordsAtPos(state.selection.from))
+	}, [state])
+
+	if (!rect) return null
+
+	const focused = focusKey.getState(state) === "popup"
+
+	return (
+		<div
+			style={{
+				position: "fixed",
+				left: rect.left,
+				top: rect.bottom + 4,
+				background: "white",
+				boxShadow: `rgba(15, 15, 15, 0.05) 0px 0px 0px 1px, rgba(15, 15, 15, 0.1) 0px 3px 6px, rgba(15, 15, 15, 0.2) 0px 9px 24px`,
+				padding: 4,
+				outline: focused ? "1px solid green" : undefined,
+				outlineOffset: -1,
+				borderRadius: 4,
+			}}
+		>
+			Hello
+		</div>
+	)
+}
+
 // TODO: controlled focus within plugins.
+//       - does it persist across refresh?
 // TODO: nodeView.
+//       - how to do this without plumbing react context?
 // TODO: view vs state plugin
 // TODO: internal state vs external state
 
@@ -404,7 +541,11 @@ const PopupMenuViewPlugins: ViewPlugin = (schema) => [
 
 const SimpleEditor: Editor = {
 	schemaPlugins: [DocumentSchema, QuoteBlockSchema, ItalicSchema],
-	statePlugins: [QuoteBlockStatePlugins, PopupMenuStatePlugins],
+	statePlugins: [
+		FocusStatePlugins,
+		QuoteBlockStatePlugins,
+		PopupMenuStatePlugins,
+	],
 	commandPlugins: [DocumentCommands, ItalicCommands, PopupMenuCommands],
 	viewPlugins: [PopupMenuViewPlugins],
 }
