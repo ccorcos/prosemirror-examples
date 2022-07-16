@@ -2,6 +2,7 @@ import "prosemirror-view/style/prosemirror.css"
 import * as React from "react"
 import { HashRouter as Router, Link, Route, Switch } from "react-router-dom"
 import "../index.css"
+import { Architecture } from "./Architecture"
 import { Editor as Autocomplete } from "./Autocomplete"
 import { BlockSelection } from "./BlockSelection"
 import { BlockSelectionPlugin } from "./BlockSelectionPlugin"
@@ -31,9 +32,15 @@ export function App() {
 					<div style={{ display: "inline-block", paddingRight: "1em" }}>
 						<Link to="/block-selection-plugin">Block Selection Plugin</Link>
 					</div>
+					<div style={{ display: "inline-block", paddingRight: "1em" }}>
+						<Link to="/architecture">Architecture</Link>
+					</div>
 				</div>
 
 				<Switch>
+					<Route path="/architecture">
+						<Architecture />
+					</Route>
 					<Route path="/focus">
 						<Focus />
 					</Route>
