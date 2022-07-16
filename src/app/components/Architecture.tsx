@@ -13,8 +13,8 @@ import {
 	NodeSpec,
 	Schema,
 } from "prosemirror-model"
-import { EditorState, Plugin, Transaction } from "prosemirror-state"
-import { EditorView } from "prosemirror-view"
+import { EditorState, Plugin, PluginKey, Transaction } from "prosemirror-state"
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
 import React, { useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
 
@@ -330,14 +330,81 @@ function formatHtmlString(schema: Schema, content: Fragment) {
 	return div.innerHTML
 }
 
-const SimpleEditor: Editor = {
-	schemaPlugins: [DocumentSchema, QuoteBlockSchema, ItalicSchema],
-	statePlugins: [QuoteBlockStatePlugins],
-	commandPlugins: [DocumentCommands, ItalicCommands],
-	viewPlugins: [],
-}
+// ============================================================================
+// PopupMenu.
+// ============================================================================
 
-// TODO: double-dispatch should work without re-render in between.
-// TODO: nodeView
+type PopupPluginState = { open: false } | { open: true; index: number }
+
+const popupMenuKey = new PluginKey<PopupPluginState>()
+
+const PopupMenuStatePlugins: StatePlugin = (schema) => [
+	new Plugin<PopupPluginState>({
+		key: popupMenuKey,
+		state: {
+			init: () => ({ open: false }),
+			apply: (tr, state) => {
+				const action = tr.getMeta(popupMenuKey)
+				if (action) return action
+				if (tr.selection.empty) return { open: false }
+				return state
+			},
+		},
+	}),
+]
+
+const PopupMenuCommands: CommandPlugin = (schema) => [
+	{
+		name: "Toggle Popup Menu",
+		shortcut: "Meta-/",
+		command: (state, dispatch, view) => {
+			const tr = state.tr
+
+			const popupState = popupMenuKey.getState(state)!
+			if (popupState.open) {
+				tr.setMeta(popupMenuKey, { open: false })
+			} else {
+				tr.setMeta(popupMenuKey, { open: true, index: 0 })
+			}
+
+			if (dispatch) dispatch(tr)
+
+			return true
+		},
+	},
+]
+
+const PopupMenuViewPlugins: ViewPlugin = (schema) => [
+	new Plugin({
+		props: {
+			decorations: (state) => {
+				const popupState = popupMenuKey.getState(state)!
+				if (!popupState.open) return null
+				const { selection } = state
+				return DecorationSet.create(state.doc, [
+					Decoration.inline(selection.from, selection.to, {
+						nodeName: "span",
+						style: "background:#222;color:white;",
+					}),
+				])
+			},
+		},
+	}),
+]
+
+// TODO: popup menu.
+// TODO: controlled focus within plugins.
+// TODO: nodeView.
 // TODO: view vs state plugin
 // TODO: internal state vs external state
+
+// ============================================================================
+// SimpleEditor.
+// ============================================================================
+
+const SimpleEditor: Editor = {
+	schemaPlugins: [DocumentSchema, QuoteBlockSchema, ItalicSchema],
+	statePlugins: [QuoteBlockStatePlugins, PopupMenuStatePlugins],
+	commandPlugins: [DocumentCommands, ItalicCommands, PopupMenuCommands],
+	viewPlugins: [PopupMenuViewPlugins],
+}
