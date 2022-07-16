@@ -62,7 +62,7 @@ function modifiers(name: string, event: KeyboardEvent, shift: boolean) {
 //
 // You can use `Mod-` as a shorthand for `Cmd-` on Mac and `Ctrl-` on
 // other platforms.
-function keydownHandler(bindings: KeyboardBindings) {
+export function keydownHandler(bindings: KeyboardBindings) {
 	let map = normalize(bindings)
 	return function (event: KeyboardEvent) {
 		let name = keyName(event),
