@@ -14,7 +14,12 @@ import {
 	Schema,
 } from "prosemirror-model"
 import { EditorState, Plugin, PluginKey, Transaction } from "prosemirror-state"
-import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
+import {
+	Decoration,
+	DecorationSet,
+	EditorView,
+	NodeViewConstructor,
+} from "prosemirror-view"
 import React, { CSSProperties, useLayoutEffect, useRef, useState } from "react"
 import { keydownHandler } from "./Keyboard"
 
@@ -68,6 +73,7 @@ type Editor = {
 	statePlugins?: StatePlugin[]
 	viewPlugins?: ViewPlugin[]
 	commandPlugins?: CommandPlugin[]
+	nodeViewPlugins?: NodeViewPlugin[]
 }
 
 function initEditorState(args: {
@@ -85,6 +91,7 @@ function initEditorState(args: {
 function ProsemirrorEditor(props: {
 	viewPlugins?: ViewPlugin[]
 	commandPlugins?: CommandPlugin[]
+	nodeViewPlugins?: NodeViewPlugin[]
 	state: EditorState
 	style?: CSSProperties
 	setState: (nextState: EditorState) => void
@@ -108,9 +115,15 @@ function ProsemirrorEditor(props: {
 		const commands = (props.commandPlugins || []).flatMap((fn) => fn(schema))
 		const plugins = (props.viewPlugins || []).flatMap((fn) => fn(schema))
 
+		const nodeViews = (props.nodeViewPlugins || []).reduce<NodeViewPlugin>(
+			(a, b) => Object.assign(a, b),
+			{}
+		)
+
 		const view = new EditorView(node, {
 			state,
 			plugins,
+			nodeViews,
 			handleKeyDown: (view, event) => {
 				// Or register commands with a command prompt or something.,
 				return handleCommandShortcut(view, commands, event)
@@ -183,6 +196,7 @@ function createSchemaPlugin<N extends string = never, M extends string = never>(
 ) {
 	return plugin
 }
+
 function createSchema<T extends SchemaPlugin<any, any>>(plugins: T[]) {
 	const nodes = plugins.reduce(
 		(acc, plugin) => Object.assign(acc, plugin.nodes),
@@ -528,6 +542,53 @@ function PopupMenuOpen(props: {
 	)
 }
 
+// ============================================================================
+// ColorSwatch.
+// ============================================================================
+
+const ColorSwatchSchema = createSchemaPlugin({
+	nodes: {
+		color: {
+			group: "inline",
+			inline: true,
+			atom: true,
+		},
+		toDOM: ["span.color"],
+		fromDOM: ["span.color"],
+	},
+})
+
+const ColorSwatchCommands: CommandPlugin = (schema) => [
+	{
+		name: "Insert Color Swatch",
+		shortcut: "Meta-e",
+		command: (state, dispatch, view) => {
+			const tr = state.tr
+			const node = schema.nodes.color.create()
+			const { from, to } = state.selection
+			tr.replaceWith(from, to, node)
+			if (dispatch) dispatch(tr)
+			return true
+		},
+	},
+]
+
+type NodeViewPlugin = { [key: string]: NodeViewConstructor }
+
+const ColorSwatchNodeViews: NodeViewPlugin = {
+	color: (node, view, getPos) => {
+		const div = document.createElement("div")
+		div.style.display = "inline-block"
+		div.style.height = "16px"
+		div.style.width = "16px"
+		div.style.border = "1px solid #999"
+		div.style.borderRadius = "2px"
+		div.style.backgroundColor = "red"
+
+		return { dom: div }
+	},
+}
+
 // TODO:
 // - controlled focus.
 //   - can we persist focus across refresh?
@@ -535,20 +596,43 @@ function PopupMenuOpen(props: {
 // 	 - how can we plumb react context through?
 // - syncing internal/external state
 //   - how to "pass external props" to a node view
+//     1. we can subscribe to some state somewhere.
+//        this does not work when you're trying to update a plugin state based on external state.
+//     2. we can denormalize that state into a plugin state.
 //   - how to "pass external props" to a state plugin
+//     1. we can re-construct the plugin and call state.reconfigure.
+//     2. we can denormalize that state into some plugin state.
+//     3. we can dispatch a transaction meta so the plugin updates its internal state.
+//     Either way, we will be denormalizing for this to work.
 //   - how to "pass external props" to a view plugin
+//     1. For decorations, I'm not sure how to "reconfigure" the view...
+//     2. For popups and stuff, it seems pretty easy to pass it "around"
+//     3. Views can also just subscribe to some data somewhere.
+
+// TODO: need to think through some more concrete examples.
 
 // ============================================================================
 // SimpleEditor.
 // ============================================================================
 
 const SimpleEditor: Editor = {
-	schemaPlugins: [DocumentSchema, QuoteBlockSchema, ItalicSchema],
+	schemaPlugins: [
+		DocumentSchema,
+		QuoteBlockSchema,
+		ItalicSchema,
+		ColorSwatchSchema,
+	],
 	statePlugins: [
 		FocusStatePlugins,
 		QuoteBlockStatePlugins,
 		PopupMenuStatePlugins,
 	],
-	commandPlugins: [DocumentCommands, ItalicCommands, PopupMenuCommands],
+	commandPlugins: [
+		DocumentCommands,
+		ItalicCommands,
+		PopupMenuCommands,
+		ColorSwatchCommands,
+	],
 	viewPlugins: [PopupMenuViewPlugins],
+	nodeViewPlugins: [ColorSwatchNodeViews],
 }
