@@ -14,7 +14,7 @@ import { keymap } from "prosemirror-keymap"
 import { MarkSpec, NodeSpec, Schema } from "prosemirror-model"
 import { EditorState, TextSelection } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import React, { useLayoutEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 
 const doc: NodeSpec = {
 	content: "block+",
@@ -120,8 +120,7 @@ export function Focus() {
 		})
 
 		view.focus()
-
-		window["editor"] = { view }
+		;(window as any)["editor"] = { view }
 	}, [])
 	return <div ref={ref}></div>
 }

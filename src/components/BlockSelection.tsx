@@ -12,7 +12,7 @@ import {
 	Transaction,
 } from "prosemirror-state"
 import { EditorView } from "prosemirror-view"
-import React, { useLayoutEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 
 // An extension of NodeSelection so that escape/enter toggles between block selection mode.
 // Meanwhile, basic node selections can happen by arrowing past an image or an inline token.
@@ -264,8 +264,7 @@ export function BlockSelection() {
 		})
 
 		view.focus()
-
-		window["editor"] = { view }
+		;(window as any)["editor"] = { view }
 	}, [])
 	return <div ref={ref}></div>
 }

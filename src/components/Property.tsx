@@ -18,8 +18,8 @@ import { history, redo, undo } from "prosemirror-history"
 import { keymap } from "prosemirror-keymap"
 import {
 	MarkSpec,
-	Node as ProsemirrorNode,
 	NodeSpec,
+	Node as ProsemirrorNode,
 	Schema,
 } from "prosemirror-model"
 import {
@@ -36,15 +36,10 @@ import {
 	DecorationSet,
 	EditorView,
 	NodeView,
+	NodeViewConstructor,
 } from "prosemirror-view"
-import React, {
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
-import ReactDOM from "react-dom"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createRoot } from "react-dom/client"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
 // Non-breaking space.
@@ -81,12 +76,13 @@ type Extension<N extends string> = {
 	plugins: Plugin[]
 	nodes: { [key in N]: NodeSpec }
 	nodeViews: {
-		[key in N]: (
-			node: ProsemirrorNode,
-			view: EditorView,
-			getPos: () => number,
-			decorations: readonly Decoration[]
-		) => NodeView
+		[key in N]: NodeViewConstructor
+		// (
+		// 	node: ProsemirrorNode,
+		// 	view: EditorView,
+		// 	getPos: () => number,
+		// 	decorations: readonly Decoration[]
+		// ) => NodeView
 	}
 }
 
@@ -126,7 +122,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 	// This is an inline element with content.
 	class TokenNodeView implements NodeView {
 		dom: HTMLElement
-		getPos: () => number
+		getPos: () => number | undefined
 
 		node: ProsemirrorNode
 		outerView: EditorView
@@ -135,12 +131,12 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		constructor(
 			node: ProsemirrorNode,
 			view: EditorView,
-			getPos: (() => number) | boolean,
+			getPos: () => number | undefined,
 			decorations: readonly Decoration[]
 		) {
 			this.node = node
 			this.outerView = view
-			this.getPos = getPos as any
+			this.getPos = getPos
 
 			// Construct and style the DOM element.
 			this.dom = document.createElement("span")
@@ -233,7 +229,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 								state: { doc, tr },
 							} = this.outerView
 							this.outerView.dispatch(
-								tr.setSelection(NodeSelection.create(doc, this.getPos()))
+								tr.setSelection(NodeSelection.create(doc, this.getPos()!))
 							)
 							// Dispatch an empty transaction so that we recompute EditorView.editable()
 							this.innerView.dispatch(this.innerView.state.tr)
@@ -261,7 +257,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			// on to the outerView using `this.getPos()` to offset correctly.
 			if (!tr.getMeta("fromOutside")) {
 				let outerTr = this.outerView.state.tr,
-					offsetMap = StepMap.offset(this.getPos() + 1)
+					offsetMap = StepMap.offset(this.getPos()! + 1)
 				for (let i = 0; i < transactions.length; i++) {
 					let steps = transactions[i].steps
 					for (let j = 0; j < steps.length; j++)
@@ -274,7 +270,7 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 		}
 
 		// TODO: ProsemirrorNode doesn't work here.
-		update(node) {
+		update(node: ProsemirrorNode) {
 			if (!node.sameMarkup(this.node)) {
 				return false
 			}
@@ -287,7 +283,12 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			let state = this.innerView.state
 			let start = node.content.findDiffStart(state.doc.content)
 			if (start != null) {
-				let { a: endA, b: endB } = node.content.findDiffEnd(state.doc.content)
+				let { a: endA, b: endB } = node.content.findDiffEnd(
+					state.doc.content
+				) as {
+					a: number
+					b: number
+				}
 				let overlap = start - Math.min(endA, endB)
 				if (overlap > 0) {
 					endA += overlap
@@ -590,9 +591,8 @@ const propertyAutocomplete = createAutocompleteTokenPlugin({
 	nodeName: "property",
 	triggerCharacter: ".",
 	renderPopup: (state, actions) => {
-		ReactDOM.render(
-			<AutocompletePopup state={state} actions={actions} />,
-			propertyPopupElement
+		createRoot(propertyPopupElement).render(
+			<AutocompletePopup state={state} actions={actions} />
 		)
 	},
 })
@@ -768,7 +768,7 @@ export function Editor() {
 			},
 		})
 
-		window["editor"] = { view }
+		;(window as any)["editor"] = { view }
 	}, [])
 	return <div ref={ref}></div>
 }

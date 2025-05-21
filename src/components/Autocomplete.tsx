@@ -20,14 +20,8 @@ import {
 	PluginKey,
 } from "prosemirror-state"
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view"
-import React, {
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react"
-import ReactDOM from "react-dom"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createRoot } from "react-dom/client"
 import { keyboardStack, useKeyboard } from "./Keyboard"
 
 // ==================================================================
@@ -280,12 +274,11 @@ const mentionAutocomplete = createAutocompleteTokenPlugin({
 	nodeName: "mention",
 	triggerCharacter: "@",
 	renderToken: (span, attr) => {
-		ReactDOM.render(<MentionToken value={attr} />, span)
+		createRoot(span).render(<MentionToken value={attr} />)
 	},
 	renderPopup: (state, actions) => {
-		ReactDOM.render(
-			<AutocompletePopup state={state} actions={actions} />,
-			mentionPopupElement
+		createRoot(mentionPopupElement).render(
+			<AutocompletePopup state={state} actions={actions} />
 		)
 	},
 })
@@ -430,9 +423,8 @@ export function Editor() {
 
 	useLayoutEffect(() => {
 		const node = ref.current
-		if (!node) {
-			throw new Error("Editor did not render!")
-		}
+
+		if (!node) throw new Error("Editor did not render!")
 
 		const state = EditorState.create({
 			schema: schema,
@@ -469,7 +461,8 @@ export function Editor() {
 			},
 		})
 
-		window["editor"] = { view }
+		;(window as any)["editor"] = { view }
 	}, [])
+
 	return <div ref={ref}></div>
 }

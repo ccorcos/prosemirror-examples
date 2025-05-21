@@ -1,6 +1,5 @@
 import "prosemirror-view/style/prosemirror.css"
-import * as React from "react"
-import { HashRouter as Router, Link, Route, Switch } from "react-router-dom"
+import { Link, Route, HashRouter as Router, Routes } from "react-router-dom"
 import "../index.css"
 import { Architecture } from "./Architecture"
 import { Editor as Autocomplete } from "./Autocomplete"
@@ -37,26 +36,17 @@ export function App() {
 					</div>
 				</div>
 
-				<Switch>
-					<Route path="/architecture">
-						<Architecture />
-					</Route>
-					<Route path="/focus">
-						<Focus />
-					</Route>
-					<Route path="/property">
-						<Property />
-					</Route>
-					<Route path="/block-selection">
-						<BlockSelection />
-					</Route>
-					<Route path="/block-selection-plugin">
-						<BlockSelectionPlugin />
-					</Route>
-					<Route path="/">
-						<Autocomplete />
-					</Route>
-				</Switch>
+				<Routes>
+					<Route path="/architecture" element={<Architecture />} />
+					<Route path="/focus" element={<Focus />} />
+					<Route path="/property" element={<Property />} />
+					<Route path="/block-selection" element={<BlockSelection />} />
+					<Route
+						path="/block-selection-plugin"
+						element={<BlockSelectionPlugin />}
+					/>
+					<Route path="/" element={<Autocomplete />} />
+				</Routes>
 			</div>
 		</Router>
 	)

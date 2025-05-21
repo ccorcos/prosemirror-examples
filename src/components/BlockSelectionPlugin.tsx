@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 
 import { exampleSetup } from "prosemirror-example-setup"
 import { Node as ProsemirrorNode, ResolvedPos, Schema } from "prosemirror-model"
@@ -267,8 +267,7 @@ export function BlockSelectionPlugin() {
 		})
 
 		view.focus()
-
-		window["editor"] = { view }
+		;(window as any)["editor"] = { view }
 	}, [])
 	return <div ref={ref}></div>
 }
