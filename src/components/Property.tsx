@@ -155,91 +155,94 @@ function createAutocompleteTokenPlugin<N extends string, T>(args: {
 			this.dom.appendChild(document.createTextNode(nbsp))
 
 			// Create the inner document.
-			this.innerView = new EditorView(value, {
-				// Disable editing when the node is not selected to that the keyboard arrow
-				// keys can move around this token.
-				editable: () => {
-					// This document is editable only when the outerView has this node selected.
-					// It's possbile for this node to be selected without focus on the innerView,
-					// but when we press Enter, we want this node to already be editable.
-					const selection = this.outerView.state.selection as NodeSelection
-					const editable = selection.node === this.node
-					return editable
-				},
-				attributes: {
-					style: [
-						"display: inline",
-						"outline: 0px solid transparent",
-						"-webkit-font-smoothing: auto",
-						"min-width:2em",
-					].join(";"),
-				},
-				state: EditorState.create({
-					doc: this.node,
-					plugins: [
-						keymap({
-							"Mod-z": () =>
-								undo(this.outerView.state, this.outerView.dispatch),
-							"Mod-y": () =>
-								redo(this.outerView.state, this.outerView.dispatch),
-							"Mod-Shift-z": () =>
-								redo(this.outerView.state, this.outerView.dispatch),
-						}),
-						// This plugin uses ProseMirror's decoration feature for placeholders.
-						new Plugin({
-							props: {
-								decorations(state) {
-									let doc = state.doc
-									if (doc.childCount === 0) {
-										const span = document.createElement("span")
-										span.innerText = "_"
-										span.style.color = "#bbb"
-										return DecorationSet.create(doc, [
-											Decoration.widget(0, span),
-										])
-									}
+			this.innerView = new EditorView(
+				{ mount: value },
+				{
+					// Disable editing when the node is not selected to that the keyboard arrow
+					// keys can move around this token.
+					editable: () => {
+						// This document is editable only when the outerView has this node selected.
+						// It's possbile for this node to be selected without focus on the innerView,
+						// but when we press Enter, we want this node to already be editable.
+						const selection = this.outerView.state.selection as NodeSelection
+						const editable = selection.node === this.node
+						return editable
+					},
+					attributes: {
+						style: [
+							"display: inline",
+							"outline: 0px solid transparent",
+							"-webkit-font-smoothing: auto",
+							"min-width:2em",
+						].join(";"),
+					},
+					state: EditorState.create({
+						doc: this.node,
+						plugins: [
+							keymap({
+								"Mod-z": () =>
+									undo(this.outerView.state, this.outerView.dispatch),
+								"Mod-y": () =>
+									redo(this.outerView.state, this.outerView.dispatch),
+								"Mod-Shift-z": () =>
+									redo(this.outerView.state, this.outerView.dispatch),
+							}),
+							// This plugin uses ProseMirror's decoration feature for placeholders.
+							new Plugin({
+								props: {
+									decorations(state) {
+										let doc = state.doc
+										if (doc.childCount === 0) {
+											const span = document.createElement("span")
+											span.innerText = "_"
+											span.style.color = "#bbb"
+											return DecorationSet.create(doc, [
+												Decoration.widget(0, span),
+											])
+										}
+									},
 								},
-							},
-						}),
-					],
-				}),
-				handleKeyDown: (view, event) => {
-					// Enter inside the token will move the cursor after the token.
-					// If the token is empty, keep focus on enter so you aren't confused about focus
-					// when you first create the token.
-					if (event.key === "Enter" && view.state.doc.childCount !== 0) {
-						const { tr, doc, selection } = this.outerView.state
-						this.outerView.dispatch(
-							tr.setSelection(TextSelection.create(doc, selection.$head.pos))
-						)
-						this.focusOuterView()
-						return true
-					}
-					return false
-				},
-
-				dispatchTransaction: this.dispatchInner,
-				handleDOMEvents: {
-					mousedown: () => {
-						// Focus the innerView on mousedown do you can make a selection inside.
-						// Also set the outerView's node selection to feel consistent with using
-						// just the keyboard.
-						if (this.outerView.hasFocus()) {
-							const {
-								state: { doc, tr },
-							} = this.outerView
+							}),
+						],
+					}),
+					handleKeyDown: (view, event) => {
+						// Enter inside the token will move the cursor after the token.
+						// If the token is empty, keep focus on enter so you aren't confused about focus
+						// when you first create the token.
+						if (event.key === "Enter" && view.state.doc.childCount !== 0) {
+							const { tr, doc, selection } = this.outerView.state
 							this.outerView.dispatch(
-								tr.setSelection(NodeSelection.create(doc, this.getPos()!))
+								tr.setSelection(TextSelection.create(doc, selection.$head.pos))
 							)
-							// Dispatch an empty transaction so that we recompute EditorView.editable()
-							this.innerView.dispatch(this.innerView.state.tr)
-							this.innerView.focus()
+							this.focusOuterView()
+							return true
 						}
-
 						return false
 					},
-				},
-			})
+
+					dispatchTransaction: this.dispatchInner,
+					handleDOMEvents: {
+						mousedown: () => {
+							// Focus the innerView on mousedown do you can make a selection inside.
+							// Also set the outerView's node selection to feel consistent with using
+							// just the keyboard.
+							if (this.outerView.hasFocus()) {
+								const {
+									state: { doc, tr },
+								} = this.outerView
+								this.outerView.dispatch(
+									tr.setSelection(NodeSelection.create(doc, this.getPos()!))
+								)
+								// Dispatch an empty transaction so that we recompute EditorView.editable()
+								this.innerView.dispatch(this.innerView.state.tr)
+								this.innerView.focus()
+							}
+
+							return false
+						},
+					},
+				}
+			)
 		}
 
 		focusOuterView() {
@@ -750,23 +753,26 @@ export function Editor() {
 			],
 		})
 
-		const view = new EditorView(node, {
-			state,
-			attributes: {
-				style: [
-					"outline: 0px solid transparent",
-					"line-height: 1.5",
-					"-webkit-font-smoothing: auto",
-					"padding: 2em",
-				].join(";"),
-			},
-			dispatchTransaction(transaction) {
-				view.updateState(view.state.apply(transaction))
-			},
-			nodeViews: {
-				...propertyAutocomplete.nodeViews,
-			},
-		})
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state,
+				attributes: {
+					style: [
+						"outline: 0px solid transparent",
+						"line-height: 1.5",
+						"-webkit-font-smoothing: auto",
+						"padding: 2em",
+					].join(";"),
+				},
+				dispatchTransaction(transaction) {
+					view.updateState(view.state.apply(transaction))
+				},
+				nodeViews: {
+					...propertyAutocomplete.nodeViews,
+				},
+			}
+		)
 
 		;(window as any)["editor"] = { view }
 	}, [])

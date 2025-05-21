@@ -87,14 +87,13 @@ export function Focus() {
 
 	useLayoutEffect(() => {
 		const node = ref.current
-		if (!node) {
-			throw new Error("Editor did not render!")
-		}
+		if (!node) throw new Error("Editor did not render!")
 
 		const doc = schema.nodeFromJSON(initialDocJson)
 
+		console.log(doc.children)
 		const state = EditorState.create({
-			selection: TextSelection.atEnd(doc.firstChild!),
+			selection: TextSelection.create(doc, doc.child(0).nodeSize - 1),
 			schema: schema,
 			doc: doc,
 			plugins: [
@@ -104,23 +103,27 @@ export function Focus() {
 			],
 		})
 
-		const view = new EditorView(node, {
-			state,
-			attributes: {
-				style: [
-					"outline: 0px solid transparent",
-					"line-height: 1.5",
-					"-webkit-font-smoothing: auto",
-					"padding: 2em",
-				].join(";"),
-			},
-			dispatchTransaction(transaction) {
-				view.updateState(view.state.apply(transaction))
-			},
-		})
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state,
+				attributes: {
+					style: [
+						"outline: 0px solid transparent",
+						"line-height: 1.5",
+						"-webkit-font-smoothing: auto",
+						"padding: 2em",
+					].join(";"),
+				},
+				dispatchTransaction(transaction) {
+					view.updateState(view.state.apply(transaction))
+				},
+			}
+		)
 
 		view.focus()
 		;(window as any)["editor"] = { view }
 	}, [])
+
 	return <div ref={ref}></div>
 }

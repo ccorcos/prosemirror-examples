@@ -120,23 +120,26 @@ function ProsemirrorEditor(props: {
 			{}
 		)
 
-		const view = new EditorView(node, {
-			state,
-			plugins,
-			nodeViews,
-			handleKeyDown: (view, event) => {
-				// Or register commands with a command prompt or something.,
-				return handleCommandShortcut(view, commands, event)
-			},
-			dispatchTransaction(tr) {
-				const nextState = view.state.apply(tr)
-				// Don't want for React to re-render to update the view state. Otherwise
-				// if there are two transactions in a row, before the next render, then
-				// the second transaction will not have the result of the first transaction.
-				view.updateState(nextState)
-				setState(nextState)
-			},
-		})
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state,
+				plugins,
+				nodeViews,
+				handleKeyDown: (view, event) => {
+					// Or register commands with a command prompt or something.,
+					return handleCommandShortcut(view, commands, event)
+				},
+				dispatchTransaction(tr) {
+					const nextState = view.state.apply(tr)
+					// Don't want for React to re-render to update the view state. Otherwise
+					// if there are two transactions in a row, before the next render, then
+					// the second transaction will not have the result of the first transaction.
+					view.updateState(nextState)
+					setState(nextState)
+				},
+			}
+		)
 		setView(view)
 		// For debugging...
 		;(window as any).view = view

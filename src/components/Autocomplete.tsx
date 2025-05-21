@@ -437,29 +437,32 @@ export function Editor() {
 			],
 		})
 
-		const view = new EditorView(node, {
-			state,
-			attributes: {
-				style: [
-					"outline: 0px solid transparent",
-					"line-height: 1.5",
-					"-webkit-font-smoothing: auto",
-					"padding: 2em",
-				].join(";"),
-			},
-			dispatchTransaction(transaction) {
-				view.updateState(view.state.apply(transaction))
-			},
-			handleKeyDown(view, event) {
-				// Delegate to the global keyboard stack.
-				if (keyboardStack.handleKeyDown(event)) {
-					// Don't bubble up so we only handle this event once.
-					event.stopPropagation()
-					return true
-				}
-				return false
-			},
-		})
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state,
+				attributes: {
+					style: [
+						"outline: 0px solid transparent",
+						"line-height: 1.5",
+						"-webkit-font-smoothing: auto",
+						"padding: 2em",
+					].join(";"),
+				},
+				dispatchTransaction(transaction) {
+					view.updateState(view.state.apply(transaction))
+				},
+				handleKeyDown(view, event) {
+					// Delegate to the global keyboard stack.
+					if (keyboardStack.handleKeyDown(event)) {
+						// Don't bubble up so we only handle this event once.
+						event.stopPropagation()
+						return true
+					}
+					return false
+				},
+			}
+		)
 
 		;(window as any)["editor"] = { view }
 	}, [])

@@ -247,27 +247,32 @@ export function BlockSelectionPlugin() {
 
 		const doc = schema.nodeFromJSON(initialDocJson)
 
-		const view = new EditorView(node, {
-			state: EditorState.create({
-				doc: doc,
-				schema: schema,
-				plugins: [selectionPlugin, ...exampleSetup({ schema })],
-			}),
-			attributes: {
-				style: [
-					"outline: 0px solid transparent",
-					"line-height: 1.5",
-					"-webkit-font-smoothing: auto",
-					"padding: 2em",
-				].join(";"),
-			},
-			dispatchTransaction(transaction) {
-				view.updateState(view.state.apply(transaction))
-			},
-		})
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state: EditorState.create({
+					doc: doc,
+					schema: schema,
+					plugins: [selectionPlugin, ...exampleSetup({ schema })],
+				}),
+				attributes: {
+					style: [
+						"outline: 0px solid transparent",
+						"line-height: 1.5",
+						"-webkit-font-smoothing: auto",
+						"padding: 2em",
+					].join(";"),
+				},
+				dispatchTransaction(transaction) {
+					view.updateState(view.state.apply(transaction))
+				},
+			}
+		)
 
 		view.focus()
 		;(window as any)["editor"] = { view }
+
+		return () => view.destroy()
 	}, [])
 	return <div ref={ref}></div>
 }

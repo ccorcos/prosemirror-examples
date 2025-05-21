@@ -189,82 +189,87 @@ export function BlockSelection() {
 
 		const doc = schema.nodeFromJSON(initialDocJson)
 
-		const view = new EditorView(node, {
-			state: EditorState.create({
-				doc: doc,
-				schema: schema,
-				plugins: [
-					keymap({
-						// Select current block.
-						Escape: (state, dispatch) => {
-							if (isBlockSelection(state.selection)) {
-								return false
-							}
-							const nodeSelection = selectCurrentBlock(state, state.selection)
-							if (!nodeSelection) {
-								return false
-							}
-							if (dispatch) {
-								dispatch(state.tr.setSelection(nodeSelection))
-							}
-							return true
-						},
-						// Edit current block.
-						Enter: (state, dispatch) => {
-							const nodeSelection = isBlockSelection(state.selection)
-							if (!nodeSelection) {
-								return false
-							}
-							if (dispatch) {
-								// TODO: what if this is an image?
-								dispatch(
-									state.tr.setSelection(
-										TextSelection.create(
-											state.tr.doc,
-											nodeSelection.$to.pos - 1
+		const view = new EditorView(
+			{ mount: node },
+			{
+				state: EditorState.create({
+					doc: doc,
+					schema: schema,
+					plugins: [
+						keymap({
+							// Select current block.
+							Escape: (state, dispatch) => {
+								if (isBlockSelection(state.selection)) {
+									return false
+								}
+								const nodeSelection = selectCurrentBlock(state, state.selection)
+								if (!nodeSelection) {
+									return false
+								}
+								if (dispatch) {
+									dispatch(state.tr.setSelection(nodeSelection))
+								}
+								return true
+							},
+							// Edit current block.
+							Enter: (state, dispatch) => {
+								const nodeSelection = isBlockSelection(state.selection)
+								if (!nodeSelection) {
+									return false
+								}
+								if (dispatch) {
+									// TODO: what if this is an image?
+									dispatch(
+										state.tr.setSelection(
+											TextSelection.create(
+												state.tr.doc,
+												nodeSelection.$to.pos - 1
+											)
 										)
 									)
-								)
-							}
-							return true
-						},
+								}
+								return true
+							},
 
-						// Select parent block
-						ArrowLeft: selectionCommmand(selectParent, true),
+							// Select parent block
+							ArrowLeft: selectionCommmand(selectParent, true),
 
-						// Select child block
-						ArrowRight: selectionCommmand(selectFirstChild, true),
+							// Select child block
+							ArrowRight: selectionCommmand(selectFirstChild, true),
 
-						// Select next sibling block
-						"Ctrl-ArrowDown": selectionCommmand(selectNextSibling, true),
+							// Select next sibling block
+							"Ctrl-ArrowDown": selectionCommmand(selectNextSibling, true),
 
-						// Select previous sibling block
-						"Ctrl-ArrowUp": selectionCommmand(selectPrevSibling, true),
+							// Select previous sibling block
+							"Ctrl-ArrowUp": selectionCommmand(selectPrevSibling, true),
 
-						// Select next block
-						ArrowDown: selectionCommmand(selectNext, true),
+							// Select next block
+							ArrowDown: selectionCommmand(selectNext, true),
 
-						// Select previous block
-						ArrowUp: selectionCommmand(selectPrev, true),
-					}),
-					...exampleSetup({ schema }),
-				],
-			}),
-			attributes: {
-				style: [
-					"outline: 0px solid transparent",
-					"line-height: 1.5",
-					"-webkit-font-smoothing: auto",
-					"padding: 2em",
-				].join(";"),
-			},
-			dispatchTransaction(transaction) {
-				view.updateState(view.state.apply(transaction))
-			},
-		})
+							// Select previous block
+							ArrowUp: selectionCommmand(selectPrev, true),
+						}),
+						...exampleSetup({ schema }),
+					],
+				}),
+				attributes: {
+					style: [
+						"outline: 0px solid transparent",
+						"line-height: 1.5",
+						"-webkit-font-smoothing: auto",
+						"padding: 2em",
+					].join(";"),
+				},
+				dispatchTransaction(transaction) {
+					view.updateState(view.state.apply(transaction))
+				},
+			}
+		)
 
 		view.focus()
 		;(window as any)["editor"] = { view }
+
+		return () => view.destroy()
 	}, [])
 	return <div ref={ref}></div>
 }
