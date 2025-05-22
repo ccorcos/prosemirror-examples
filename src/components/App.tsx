@@ -3,6 +3,7 @@ import { Link, Route, HashRouter as Router, Routes } from "react-router-dom"
 import "../index.css"
 import { Architecture } from "./Architecture"
 import { Editor as Autocomplete } from "./Autocomplete"
+import { Basic } from "./Basic"
 import { BlockSelection } from "./BlockSelection"
 import { BlockSelectionPlugin } from "./BlockSelectionPlugin"
 import { Focus } from "./Focus"
@@ -34,9 +35,13 @@ export function App() {
 					<div style={{ display: "inline-block", paddingRight: "1em" }}>
 						<Link to="/architecture">Architecture</Link>
 					</div>
+					<div style={{ display: "inline-block", paddingRight: "1em" }}>
+						<Link to="/basic">Basic</Link>
+					</div>
 				</div>
 
 				<Routes>
+					<Route path="/basic" element={<Basic />} />
 					<Route path="/architecture" element={<Architecture />} />
 					<Route path="/focus" element={<Focus />} />
 					<Route path="/property" element={<Property />} />
